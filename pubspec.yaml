@@ -1,0 +1,31 @@
+name: fish
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_local_notifications: ^14.0.0
+  shared_preferences: ^2.2.0
+  sqflite: ^2.3.0
+  path: ^1.8.0
+  mqtt_client: ^10.0.0
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+# ส่วนที่สำคัญและแก้ไขให้แล้วจะอยู่ตรงนี้
+flutter:
+  uses-material-design: true
+
+  # assets: ต้องอยู่ระดับเดียวกับ uses-material-design:
+  assets:
+    - assets/
