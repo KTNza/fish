@@ -17,7 +17,7 @@ class _ConnectPageState extends State<ConnectPage> {
   String? _connectedDevice;
   
   // อุปกรณ์ที่พบหลังจากสแกน (จะเติมจาก Bluetooth scan จริง)
-  List<Map<String, String>> _availableDevices = [];
+  final List<Map<String, String>> _availableDevices = [];
 
   // ฟังก์ชันค้นหาอุปกรณ์
   void _scanDevices() {
