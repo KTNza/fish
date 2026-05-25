@@ -5,7 +5,6 @@ import 'dashbord.dart';
 import 'Connect.dart';
 import 'Notification.dart';
 import 'notification_service.dart';
-import 'package:flutter/services.dart';
 
 // หน้าจอตั้งเวลา
 class SetTimePage extends StatefulWidget {
@@ -101,6 +100,7 @@ class _SetTimePageState extends State<SetTimePage> {
           _remainingSeconds--;
         });
       } else {
+        _countdownTimer?.cancel();
         _triggerFeeding();
       }
     });
@@ -590,10 +590,10 @@ class _SetTimePageState extends State<SetTimePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Feeding',
                 style: TextStyle(
                   color: Colors.black87,
@@ -601,7 +601,7 @@ class _SetTimePageState extends State<SetTimePage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Icon(Icons.restaurant, color: const Color(0xFF003C7E), size: 28),
+              Icon(Icons.restaurant, color: Color(0xFF003C7E), size: 28),
             ],
           ),
           const SizedBox(height: 20),
