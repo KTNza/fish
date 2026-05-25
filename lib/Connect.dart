@@ -64,8 +64,7 @@ class _ConnectPageState extends State<ConnectPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200], // พื้นหลังสีเทาอ่อนeiei
-      appBar: AppBar(
+      backgroundColor: Colors.grey[200], // พื้นหลังสีเทาอ่อน
         automaticallyImplyLeading: false, // เอาปุ่ม back ออก
         backgroundColor: Colors.grey[200],
         elevation: 0,
