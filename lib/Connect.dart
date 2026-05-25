@@ -17,7 +17,7 @@ class _ConnectPageState extends State<ConnectPage> {
   String? _connectedDevice;
   
   // อุปกรณ์ที่พบหลังจากสแกน (จะเติมจาก Bluetooth scan จริง)
-  List<Map<String, String>> _availableDevices = [];
+  final List<Map<String, String>> _availableDevices = [];
 
   // ฟังก์ชันค้นหาอุปกรณ์
   void _scanDevices() {
@@ -64,7 +64,7 @@ class _ConnectPageState extends State<ConnectPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200], // พื้นหลังสีเทาอ่อน
+      backgroundColor: const Color.fromARGB(255, 17, 17, 17), // พื้นหลังสีเทาอ่อน
       appBar: AppBar(
         automaticallyImplyLeading: false, // เอาปุ่ม back ออก
         backgroundColor: Colors.grey[200],
