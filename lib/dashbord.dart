@@ -16,7 +16,6 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool _isFeeding = false;
   int _selectedIndex = 0;
   bool _hasNotification = false;
   bool _hasBoardSensorData = false;
@@ -25,7 +24,7 @@ class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<Map<String, double>>? _sensorSubscription;
   StreamSubscription<bool>? _mqttConnectionSubscription;
   Timer? _connectionCheckTimer;
-  
+
   final SensorDataManager _sensorManager = SensorDataManager();
   final List<Map<String, String>> _notifications = [];
 
@@ -43,6 +42,8 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _phHighAlerted = false;
   bool _oxygenLowAlerted = false;
   bool _oxygenHighAlerted = false;
+  bool _turbidityLowAlerted = false;
+  bool _turbidityModerateAlerted = false;
   bool _turbidityHighAlerted = false;
 
   @override
@@ -50,6 +51,10 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _startSensorListener();
     _monitorMqttConnection();
+    _notifications
+      ..clear()
+      ..addAll(NotificationService().notificationHistory);
+    _hasNotification = _notifications.isNotEmpty;
   }
 
   void _startSensorListener() {
@@ -117,7 +122,10 @@ class _DashboardPageState extends State<DashboardPage> {
     });
 
     // บันทึกลงฐานข้อมูล
-    if (temperature != null && phValue != null && oxygenLevel != null && turbidity != null) {
+    if (temperature != null &&
+        phValue != null &&
+        oxygenLevel != null &&
+        turbidity != null) {
       _sensorManager.saveSensorData(
         temperature: temperature,
         phValue: phValue,
@@ -203,16 +211,36 @@ class _DashboardPageState extends State<DashboardPage> {
       _oxygenHighAlerted = false;
     }
 
-    if (_turbidity > _turbidityAlertThreshold) {
-      if (!_turbidityHighAlerted) {
-        _turbidityHighAlerted = true;
+    if (_turbidity <= 1.0) {
+      if (!_turbidityLowAlerted) {
+        _turbidityLowAlerted = true;
+        _turbidityModerateAlerted = false;
+        _turbidityHighAlerted = false;
         _addSensorAlert(
-          'High Turbidity Alert',
-          'Turbidity is above ${_turbidityAlertThreshold.toStringAsFixed(1)} NTU. Current turbidity ${_turbidity.toStringAsFixed(1)} NTU. Please clean the water or check the filter.',
+          'Turbidity Alert',
+          '0.0 - 1.0 NTU: น้ำใสสะอาดบริสุทธิ์ (เกณฑ์มาตรฐานน้ำดื่มคุณภาพสูง)',
+        );
+      }
+    } else if (_turbidity <= 5.0) {
+      if (!_turbidityModerateAlerted) {
+        _turbidityModerateAlerted = true;
+        _turbidityLowAlerted = false;
+        _turbidityHighAlerted = false;
+        _addSensorAlert(
+          'Turbidity Alert',
+          '1.0 - 5.0 NTU: น้ำเริ่มขุ่นเล็กน้อย แต่ยังอยู่ในเกณฑ์มาตรฐานที่องค์การอนามัยโลก (WHO) และการประปายอมรับว่าปลอดภัย',
         );
       }
     } else {
-      _turbidityHighAlerted = false;
+      if (!_turbidityHighAlerted) {
+        _turbidityHighAlerted = true;
+        _turbidityLowAlerted = false;
+        _turbidityModerateAlerted = false;
+        _addSensorAlert(
+          'Turbidity Alert',
+          'มากกว่า 5 NTU: น้ำขุ่นอย่างเห็นได้ชัดและไม่เหมาะสำหรับการดื่ม ต้องผ่านการบำบัดกรองเพิ่มเติม',
+        );
+      }
     }
   }
 
@@ -268,28 +296,15 @@ class _DashboardPageState extends State<DashboardPage> {
         automaticallyImplyLeading: false, // เอาปุ่ม back ออก
         backgroundColor: Colors.grey[200],
         elevation: 0,
-        title: Padding(
-          padding: const EdgeInsets.only(left: 8.0),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: _isMqttConnected ? Colors.green : Colors.red,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _isMqttConnected ? 'Connected' : 'Disconnected',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _isMqttConnected ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+        title: const Padding(
+          padding: EdgeInsets.only(left: 8.0),
+          child: Text(
+            'Dashboard',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         actions: [
@@ -352,17 +367,12 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             const SizedBox(height: 25), // เพิ่มระยะห่าง
-            // แถวที่ 2: Feed & Oxygen
+            // แถวที่ 2: Turbidity & Oxygen
             Row(
               children: [
                 Expanded(
-                  child: FeedCard(
-                    isFeeding: _isFeeding,
-                    onChanged: (value) {
-                      setState(() {
-                        _isFeeding = value;
-                      });
-                    },
+                  child: TurbidityCard(
+                    turbidity: _turbidity,
                   ),
                 ),
                 const SizedBox(width: 20),
@@ -375,6 +385,70 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ],
             ),
+            if (_notifications.isNotEmpty) ...[
+              const SizedBox(height: 25),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Notification History',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Column(
+                children: _notifications.take(3).map((notification) {
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          notification['title'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          notification['message'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          notification['time'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
           ],
         ),
       ),
@@ -491,21 +565,19 @@ class InfoCard extends StatelessWidget {
   }
 }
 
-// การ์ดสำหรับให้อาหาร
-class FeedCard extends StatelessWidget {
-  final bool isFeeding;
-  final ValueChanged<bool> onChanged;
+// การ์ดแสดงค่าความขุ่นของน้ำ
+class TurbidityCard extends StatelessWidget {
+  final double turbidity;
 
-  const FeedCard({
+  const TurbidityCard({
     super.key,
-    required this.isFeeding,
-    required this.onChanged,
+    required this.turbidity,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       height: 160,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
@@ -523,28 +595,32 @@ class FeedCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.eco, color: Colors.white, size: 28),
+          Icon(Icons.water_drop,
+              color: Colors.white.withOpacity(0.9), size: 28),
           const SizedBox(height: 6),
-          const Text(
-            'Feed the fish',
-            textAlign: TextAlign.center,
-            style: TextStyle(
+          Text(
+            '${turbidity.toStringAsFixed(1)} NTU',
+            style: const TextStyle(
               color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              height: 1.5,
+              fontSize: 24,
+              fontFamily: 'serif',
+              fontWeight: FontWeight.w100,
             ),
           ),
-          const SizedBox(height: 6),
-          Transform.scale(
-            scale: 0.9,
-            child: Switch(
-              value: isFeeding,
-              onChanged: onChanged,
-              activeThumbColor: const Color.fromARGB(248, 3, 107, 3),
-              inactiveThumbColor: Colors.white,
-              inactiveTrackColor: Colors.black.withOpacity(0.3),
-              trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+          const SizedBox(height: 4),
+          Container(
+            width: 30,
+            height: 0.8,
+            color: Colors.white24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Turbidity',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 11,
+              height: 1.1,
             ),
           ),
         ],

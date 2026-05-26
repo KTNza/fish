@@ -135,14 +135,6 @@ class _ConnectPageState extends State<ConnectPage> {
                     color: Color(0xFF003C7E),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    _isConnected ? 'Connected' : 'Not Connected',
-                    style: TextStyle(
-                      color: _isConnected ? Colors.green : Colors.red,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
                   if (_connectedDevice != null) ...[
                     const SizedBox(height: 8),
                     Text(

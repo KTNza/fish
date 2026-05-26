@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dashbord.dart';
 import 'Connect.dart';
@@ -24,6 +25,10 @@ class _SetTimePageState extends State<SetTimePage> {
   bool _isFeeding = false;
   bool _isTimerRunning = false;
   int? _countdownEndTimeMillis;
+
+  static const int _feedNotificationId = 1001;
+  static const int _lightOnNotificationId = 1002;
+  static const int _lightOffNotificationId = 1003;
 
   int get _feedingIntervalSeconds =>
       _feedingIntervalHours * 3600 + _feedingIntervalMinutes * 60;
@@ -74,10 +79,91 @@ class _SetTimePageState extends State<SetTimePage> {
     await prefs.setInt('feedingIntervalMinutes', _feedingIntervalMinutes);
   }
 
+  Future<void> _scheduleFeedingNotification() async {
+    await NotificationService().cancelNotification(_feedNotificationId);
+    if (_isTimerRunning && _countdownEndTimeMillis != null) {
+      final scheduledDate =
+          DateTime.fromMillisecondsSinceEpoch(_countdownEndTimeMillis!);
+      if (scheduledDate.isAfter(DateTime.now())) {
+        await NotificationService().scheduleNotification(
+          id: _feedNotificationId,
+          title: 'Feed Fish',
+          body:
+              'Time to feed the fish at ${scheduledDate.hour.toString().padLeft(2, '0')}:${scheduledDate.minute.toString().padLeft(2, '0')}.',
+          scheduledDate: scheduledDate,
+        );
+      }
+    }
+  }
+
+  Future<void> _scheduleLightNotifications() async {
+    await NotificationService().cancelNotification(_lightOnNotificationId);
+    await NotificationService().cancelNotification(_lightOffNotificationId);
+
+    final now = DateTime.now();
+    DateTime nextOn = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      _lightTime.hour,
+      _lightTime.minute,
+    );
+    if (!nextOn.isAfter(now)) {
+      nextOn = nextOn.add(const Duration(days: 1));
+    }
+
+    DateTime nextOff = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      _lightOffTime.hour,
+      _lightOffTime.minute,
+    );
+    if (!nextOff.isAfter(now)) {
+      nextOff = nextOff.add(const Duration(days: 1));
+    }
+
+    await NotificationService().scheduleNotification(
+      id: _lightOnNotificationId,
+      title: 'Lights On',
+      body:
+          'Lights will turn on at ${_lightTime.hour.toString().padLeft(2, '0')}:${_lightTime.minute.toString().padLeft(2, '0')}.',
+      scheduledDate: nextOn,
+    );
+
+    await NotificationService().scheduleNotification(
+      id: _lightOffNotificationId,
+      title: 'Lights Off',
+      body:
+          'Lights will turn off at ${_lightOffTime.hour.toString().padLeft(2, '0')}:${_lightOffTime.minute.toString().padLeft(2, '0')}.',
+      scheduledDate: nextOff,
+    );
+  }
+
   Future<void> _clearTimerState() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('feedingTimerRunning', false);
     await prefs.remove('feedingEndTimeMillis');
+  }
+
+  Future<void> _saveLightSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('lightOnHour', _lightTime.hour);
+    await prefs.setInt('lightOnMinute', _lightTime.minute);
+    await prefs.setInt('lightOffHour', _lightOffTime.hour);
+    await prefs.setInt('lightOffMinute', _lightOffTime.minute);
+    await prefs.setBool('lightIsOn', _isLightOn);
+  }
+
+  bool _computeLightOn(TimeOfDay now, TimeOfDay onTime, TimeOfDay offTime) {
+    final nowMinutes = now.hour * 60 + now.minute;
+    final onMinutes = onTime.hour * 60 + onTime.minute;
+    final offMinutes = offTime.hour * 60 + offTime.minute;
+
+    if (onMinutes <= offMinutes) {
+      return nowMinutes >= onMinutes && nowMinutes < offMinutes;
+    }
+    return nowMinutes >= onMinutes || nowMinutes < offMinutes;
   }
 
   void _startCountdown({int? startSeconds}) {
@@ -94,6 +180,8 @@ class _SetTimePageState extends State<SetTimePage> {
       _countdownEndTimeMillis = endTimeMillis;
     });
     _saveTimerState(endTimeMillis);
+    _saveIntervalSettings();
+    _scheduleFeedingNotification();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remainingSeconds > 0) {
         setState(() {
@@ -116,6 +204,7 @@ class _SetTimePageState extends State<SetTimePage> {
       _countdownEndTimeMillis = null;
     });
     _clearTimerState();
+    NotificationService().cancelNotification(_feedNotificationId);
   }
 
   // ฟังก์ชันเมื่อถึงเวลาให้อาหาร
@@ -146,6 +235,11 @@ class _SetTimePageState extends State<SetTimePage> {
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title: 'Time to Feed Fish',
       body: 'Time to feed the fish ($timeString)',
+    );
+    NotificationService().addHistory(
+      title: 'Time to Feed Fish',
+      body: 'Time to feed the fish ($timeString)',
+      time: timeString,
     );
 
     // รอ 3 วินาทีแล้วเริ่มนับถอยหลังใหม่
@@ -216,6 +310,11 @@ class _SetTimePageState extends State<SetTimePage> {
           title: 'Lights On',
           body: 'Lights turned on at $timeString',
         );
+        NotificationService().addHistory(
+          title: 'Lights On',
+          body: 'Lights turned on at $timeString',
+          time: timeString,
+        );
       }
 
       if (nowMinutes == lightOffMinutes && _isLightOn) {
@@ -241,6 +340,11 @@ class _SetTimePageState extends State<SetTimePage> {
           title: 'Lights Off',
           body: 'Lights turned off at $timeString',
         );
+        NotificationService().addHistory(
+          title: 'Lights Off',
+          body: 'Lights turned off at $timeString',
+          time: timeString,
+        );
       }
     });
   }
@@ -248,9 +352,10 @@ class _SetTimePageState extends State<SetTimePage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadSavedState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadSavedState();
       _startLightTimer();
+      _scheduleLightNotifications();
     });
   }
 
@@ -260,12 +365,36 @@ class _SetTimePageState extends State<SetTimePage> {
     final savedMinutes = prefs.getInt('feedingIntervalMinutes');
     final running = prefs.getBool('feedingTimerRunning') ?? false;
     final savedEndMillis = prefs.getInt('feedingEndTimeMillis');
+    final savedLightOnHour = prefs.getInt('lightOnHour');
+    final savedLightOnMinute = prefs.getInt('lightOnMinute');
+    final savedLightOffHour = prefs.getInt('lightOffHour');
+    final savedLightOffMinute = prefs.getInt('lightOffMinute');
 
     setState(() {
       if (savedHours != null) _feedingIntervalHours = savedHours;
       if (savedMinutes != null) _feedingIntervalMinutes = savedMinutes;
+      if (savedLightOnHour != null && savedLightOnMinute != null) {
+        _lightTime = TimeOfDay(
+          hour: savedLightOnHour,
+          minute: savedLightOnMinute,
+        );
+      }
+      if (savedLightOffHour != null && savedLightOffMinute != null) {
+        _lightOffTime = TimeOfDay(
+          hour: savedLightOffHour,
+          minute: savedLightOffMinute,
+        );
+      }
       _isTimerRunning = running;
       _countdownEndTimeMillis = savedEndMillis;
+      _notifications
+        ..clear()
+        ..addAll(NotificationService().notificationHistory);
+    });
+
+    final now = TimeOfDay.now();
+    setState(() {
+      _isLightOn = _computeLightOn(now, _lightTime, _lightOffTime);
     });
 
     if (_isTimerRunning && _countdownEndTimeMillis != null) {
@@ -1047,8 +1176,12 @@ class _SetTimePageState extends State<SetTimePage> {
                 _showTimePicker(context, _lightTime, (TimeOfDay newTime) {
                   setState(() {
                     _lightTime = newTime;
+                    _isLightOn = _computeLightOn(
+                        TimeOfDay.now(), _lightTime, _lightOffTime);
                   });
                   _sendTimeSettingsToDevice();
+                  _saveLightSettings();
+                  _scheduleLightNotifications();
                 });
               },
             ),
@@ -1062,8 +1195,12 @@ class _SetTimePageState extends State<SetTimePage> {
                 _showTimePicker(context, _lightOffTime, (TimeOfDay newTime) {
                   setState(() {
                     _lightOffTime = newTime;
+                    _isLightOn = _computeLightOn(
+                        TimeOfDay.now(), _lightTime, _lightOffTime);
                   });
                   _sendTimeSettingsToDevice();
+                  _saveLightSettings();
+                  _scheduleLightNotifications();
                 });
               },
             ),
