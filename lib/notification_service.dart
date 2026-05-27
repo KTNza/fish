@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
   NotificationService._privateConstructor();
@@ -22,6 +24,14 @@ class NotificationService {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     await _loadHistory(prefs);
+
+    // ⏰ เพิ่ม timezone init
+    try {
+      tzdata.initializeTimeZones();
+      print('✅ Timezone initialized');
+    } catch (e) {
+      print('⚠️ Timezone init error: $e');
+    }
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -47,7 +57,7 @@ class NotificationService {
       final androidImplementation =
           _notificationsPlugin.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
-      await androidImplementation?.requestPermission();
+      await androidImplementation?.requestNotificationsPermission();
     }
   }
 
@@ -72,11 +82,26 @@ class NotificationService {
     await prefs.setStringList(_historyPreferencesKey, stored);
   }
 
+  bool _isDuplicateHistoryEntry(
+      String title, String body, String time) {
+    if (_notificationHistory.isEmpty) {
+      return false;
+    }
+    final latest = _notificationHistory.first;
+    return latest['title'] == title &&
+        latest['message'] == body &&
+        latest['time'] == time;
+  }
+
   Future<void> addHistory({
     required String title,
     required String body,
     required String time,
   }) async {
+    if (_isDuplicateHistoryEntry(title, body, time)) {
+      return;
+    }
+
     _notificationHistory.insert(0, {
       'title': title,
       'message': body,
@@ -115,13 +140,18 @@ class NotificationService {
       macOS: iosDetails,
     );
 
-    await _notificationsPlugin.schedule(
+    final scheduledDateUTC = tz.TZDateTime.from(scheduledDate, tz.UTC);
+
+    await _notificationsPlugin.zonedSchedule(
       id,
       title,
       body,
-      scheduledDate,
+      scheduledDateUTC,
       platformDetails,
       androidAllowWhileIdle: true,
+      matchDateTimeComponents: matchDateTimeComponents,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 

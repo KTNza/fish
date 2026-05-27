@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import 'dashbord.dart';
 import 'Connect.dart';
 import 'Notification.dart';
 import 'notification_service.dart';
+import 'mqtt_service.dart';
 
 // หน้าจอตั้งเวลา
 class SetTimePage extends StatefulWidget {
@@ -242,12 +244,16 @@ class _SetTimePageState extends State<SetTimePage> {
       time: timeString,
     );
 
+    _publishControlCommand(MqttService.topicControlFeed, 'feed');
+
     // รอ 3 วินาทีแล้วเริ่มนับถอยหลังใหม่
     Future.delayed(const Duration(seconds: 3), () {
-      setState(() {
-        _isFeeding = false;
-      });
-      _startCountdown();
+      if (mounted) {
+        setState(() {
+          _isFeeding = false;
+        });
+        _startCountdown();
+      }
     });
   }
 
@@ -261,8 +267,6 @@ class _SetTimePageState extends State<SetTimePage> {
 
   // ฟังก์ชันส่งเวลาไปยัง Hardware
   void _sendTimeSettingsToDevice() {
-    // TODO: เชื่อมต่อกับ Bluetooth/API เพื่อส่งเวลาไปยังอุปกรณ์
-    // ตัวอย่างโครงสร้างข้อมูลที่จะส่ง:
     final timeSettings = {
       'feedingIntervalHours': _feedingIntervalHours,
       'feedingIntervalMinutes': _feedingIntervalMinutes,
@@ -272,8 +276,13 @@ class _SetTimePageState extends State<SetTimePage> {
           '${_lightOffTime.hour.toString().padLeft(2, '0')}:${_lightOffTime.minute.toString().padLeft(2, '0')}',
     };
 
-    // ส่ง timeSettings ไปยัง hardware ผ่าน Bluetooth/API
-    print('Sending time settings: $timeSettings');
+    MqttService().publishJson(MqttService.topicControlSettings, timeSettings);
+    print('Sending time settings to device: $timeSettings');
+  }
+
+  void _publishControlCommand(String topic, String payload) {
+    MqttService().publish(topic, payload);
+    print('Publish control command: $topic -> $payload');
   }
 
   // ฟังก์ชันตรวจสอบเวลาเปิด/ปิดไฟ
@@ -315,6 +324,7 @@ class _SetTimePageState extends State<SetTimePage> {
           body: 'Lights turned on at $timeString',
           time: timeString,
         );
+        _publishControlCommand(MqttService.topicControlLight, 'light_on');
       }
 
       if (nowMinutes == lightOffMinutes && _isLightOn) {
@@ -345,6 +355,7 @@ class _SetTimePageState extends State<SetTimePage> {
           body: 'Lights turned off at $timeString',
           time: timeString,
         );
+        _publishControlCommand(MqttService.topicControlLight, 'light_off');
       }
     });
   }
@@ -354,6 +365,7 @@ class _SetTimePageState extends State<SetTimePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadSavedState();
+      _sendTimeSettingsToDevice();
       _startLightTimer();
       _scheduleLightNotifications();
     });
@@ -396,7 +408,7 @@ class _SetTimePageState extends State<SetTimePage> {
     setState(() {
       _isLightOn = _computeLightOn(now, _lightTime, _lightOffTime);
     });
-
+    _publishControlCommand(MqttService.topicControlLight, _isLightOn ? 'light_on' : 'light_off');
     if (_isTimerRunning && _countdownEndTimeMillis != null) {
       final now = DateTime.now();
       final endTime =
@@ -471,11 +483,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedHour == index
-                                            ? const Color(0xFF003C7E)
-                                            : Colors.black,
+                                          ? const Color(0xFF003C7E)
+                                          : Colors.black,
                                         fontWeight: selectedHour == index
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -512,11 +524,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedMinute == index
-                                            ? const Color(0xFF003C7E)
-                                            : Colors.black,
+                                          ? const Color(0xFF003C7E)
+                                          : Colors.black,
                                         fontWeight: selectedMinute == index
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -609,11 +621,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedHour == index
-                                            ? const Color(0xFF003C7E)
-                                            : Colors.black,
+                                          ? const Color(0xFF003C7E)
+                                          : Colors.black,
                                         fontWeight: selectedHour == index
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -649,11 +661,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedMinute == index
-                                            ? const Color(0xFF003C7E)
-                                            : Colors.black,
+                                          ? const Color(0xFF003C7E)
+                                          : Colors.black,
                                         fontWeight: selectedMinute == index
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -979,6 +991,7 @@ class _SetTimePageState extends State<SetTimePage> {
                                           setState(() {
                                             _feedingIntervalHours = hour;
                                             _feedingIntervalMinutes = minute;
+                                            _normalizeInterval();
                                             if (_feedingIntervalSeconds <= 0) {
                                               _feedingIntervalMinutes = 1;
                                             }
@@ -1204,6 +1217,76 @@ class _SetTimePageState extends State<SetTimePage> {
                 });
               },
             ),
+            
+            const SizedBox(height: 20),
+            
+            // 💡 เพิ่มใหม่: ส่วนควบคุมไฟแบบ Manual 💡
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 8,
+                    offset: const Offset(2, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _isLightOn ? Icons.lightbulb : Icons.lightbulb_outline,
+                        color: _isLightOn ? Colors.orange : Colors.grey,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Manual Light Control',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Switch(
+                    value: _isLightOn,
+                    onChanged: (value) {
+                      setState(() {
+                        _isLightOn = value;
+                      });
+                      _saveLightSettings();
+                      
+                      // ส่งคำสั่งไปที่ตู้ปลา ESP32 ทันที
+                      _publishControlCommand(
+                          MqttService.topicControlLight, value ? 'light_on' : 'light_off');
+
+                      // เด้งข้อความแจ้งเตือนด้านล่างจอ
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(value ? '💡 Light turned ON manually' : '💡 Light turned OFF manually'),
+                          backgroundColor: const Color(0xFF003C7E),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    activeColor: Colors.orange,
+                    activeTrackColor: Colors.orange.withOpacity(0.3),
+                    inactiveThumbColor: Colors.grey,
+                    inactiveTrackColor: Colors.grey.withOpacity(0.3),
+                  ),
+                ],
+              ),
+            ),
+            // สิ้นสุดส่วนควบคุมไฟแบบ Manual
+
           ],
         ),
       ),

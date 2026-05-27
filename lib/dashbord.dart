@@ -244,10 +244,24 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  bool _isDuplicateAlert(String title, String message, String time) {
+    if (_notifications.isEmpty) {
+      return false;
+    }
+    final last = _notifications.first;
+    return last['title'] == title &&
+        last['message'] == message &&
+        last['time'] == time;
+  }
+
   void _addSensorAlert(String title, String message) {
     final now = TimeOfDay.now();
     final timeString =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    if (_isDuplicateAlert(title, message, timeString)) {
+      return;
+    }
 
     setState(() {
       _hasNotification = true;
@@ -385,70 +399,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ],
             ),
-            if (_notifications.isNotEmpty) ...[
-              const SizedBox(height: 25),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Notification History',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Column(
-                children: _notifications.take(3).map((notification) {
-                  return Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          notification['title'] ?? '',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          notification['message'] ?? '',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          notification['time'] ?? '',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
           ],
         ),
       ),
