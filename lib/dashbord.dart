@@ -212,23 +212,17 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     if (_turbidity <= 1.0) {
-      if (!_turbidityLowAlerted) {
-        _turbidityLowAlerted = true;
-        _turbidityModerateAlerted = false;
-        _turbidityHighAlerted = false;
-        _addSensorAlert(
-          'Turbidity Alert',
-          '0.0 - 1.0 NTU: น้ำใสสะอาดบริสุทธิ์ (เกณฑ์มาตรฐานน้ำดื่มคุณภาพสูง)',
-        );
-      }
+      _turbidityLowAlerted = false;
+      _turbidityModerateAlerted = false;
+      _turbidityHighAlerted = false;
     } else if (_turbidity <= 5.0) {
       if (!_turbidityModerateAlerted) {
         _turbidityModerateAlerted = true;
         _turbidityLowAlerted = false;
         _turbidityHighAlerted = false;
         _addSensorAlert(
-          'Turbidity Alert',
-          '1.0 - 5.0 NTU: น้ำเริ่มขุ่นเล็กน้อย แต่ยังอยู่ในเกณฑ์มาตรฐานที่องค์การอนามัยโลก (WHO) และการประปายอมรับว่าปลอดภัย',
+          'น้ำเริ่มขุ่น',
+          '1.0 - 5.0 NTU: น้ำเริ่มขุ่นเล็กน้อย ควรตรวจสอบการกรองและการหมุนเวียนน้ำ',
         );
       }
     } else {
@@ -237,8 +231,8 @@ class _DashboardPageState extends State<DashboardPage> {
         _turbidityLowAlerted = false;
         _turbidityModerateAlerted = false;
         _addSensorAlert(
-          'Turbidity Alert',
-          'มากกว่า 5 NTU: น้ำขุ่นอย่างเห็นได้ชัดและไม่เหมาะสำหรับการดื่ม ต้องผ่านการบำบัดกรองเพิ่มเติม',
+          'น้ำขุ่นมาก',
+          'มากกว่า 5 NTU: น้ำขุ่นอย่างเห็นได้ชัด ต้องทำความสะอาดระบบกรองและเปลี่ยนถ่ายน้ำ',
         );
       }
     }
@@ -524,6 +518,15 @@ class TurbidityCard extends StatelessWidget {
     required this.turbidity,
   });
 
+  String get _statusText {
+    if (turbidity <= 1.0) {
+      return 'น้ำใส';
+    } else if (turbidity <= 5.0) {
+      return 'เริ่มขุ่น';
+    }
+    return 'ขุ่น';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -555,6 +558,15 @@ class TurbidityCard extends StatelessWidget {
               fontSize: 24,
               fontFamily: 'serif',
               fontWeight: FontWeight.w100,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _statusText,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
