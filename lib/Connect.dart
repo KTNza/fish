@@ -255,45 +255,6 @@ class _ConnectPageState extends State<ConnectPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    spreadRadius: 1,
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Network Details',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildDetailRow(Icons.dns, 'Broker', 'broker.hivemq.com'),
-                  const Divider(height: 24),
-                  _buildDetailRow(Icons.tag, 'Port', '1883'),
-                  const Divider(height: 24),
-                  _buildDetailRow(
-                    Icons.security,
-                    'Security',
-                    'No SSL (Development)',
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -336,32 +297,6 @@ class _ConnectPageState extends State<ConnectPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String title, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 24, color: Colors.grey[600]),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }
