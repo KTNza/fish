@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dashbord.dart';
 import 'settime.dart';
+import 'mqtt_service.dart';
 
-// หน้าจอเชื่อมต่อ
+// หน้าจอเชื่อมต่อและตรวจสอบสถานะ
 class ConnectPage extends StatefulWidget {
   const ConnectPage({super.key});
 
@@ -11,64 +13,107 @@ class ConnectPage extends StatefulWidget {
 }
 
 class _ConnectPageState extends State<ConnectPage> {
-  int _selectedIndex = 2; // เลือก ปุ่มขวาสุด
-  bool _isConnected = false;
-  bool _isSearching = false;
-  String? _connectedDevice;
+  int _selectedIndex = 2; 
   
-  // อุปกรณ์ที่พบหลังจากสแกน (จะเติมจาก Bluetooth scan จริง)
-  final List<Map<String, String>> _availableDevices = [];
+  bool _isConnecting = false;
+  bool _isConnected = false; 
+  Timer? _statusCheckTimer;
 
-  // ฟังก์ชันค้นหาอุปกรณ์
-  void _scanDevices() {
-    if (_isSearching) return;
+  @override
+  void initState() {
+    super.initState();
+    _checkConnectionStatus();
     
-    setState(() {
-      _isSearching = true;
+    // 🔥 เพิ่มระบบ Auto-Connect: ถ้าเปิดหน้านี้มาแล้วยังไม่ต่อเน็ต ให้มันพยายามต่อเองเลย!
+    if (!MqttService().isConnected && !_isConnecting) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _reconnect();
+      });
+    }
+    
+    // ตั้งเวลาเช็กชีพจรตู้ปลาทุกๆ 2 วินาที แบบ Real-time
+    _statusCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _checkConnectionStatus();
     });
+  }
+
+  @override
+  void dispose() {
+    _statusCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  // ลอจิกสำคัญ: เช็กว่า "ตู้ปลา" ออนไลน์จริงๆ หรือไม่
+  void _checkConnectionStatus() {
+    bool isFishTankOnline = MqttService().isDeviceOnline;
+
+    if (mounted && _isConnected != isFishTankOnline) {
+      setState(() {
+        _isConnected = isFishTankOnline;
+      });
+    }
+  }
+
+  // ฟังก์ชันปุ่มกด และ Auto-connect
+  void _reconnect() async {
+    if (_isConnecting) return; // ป้องกันการกดรัวๆ
+
+    setState(() {
+      _isConnecting = true;
+    });
+
+    try {
+      // สั่งให้แอปต่อเซิร์ฟเวอร์ใหม่
+      await MqttService().connect(); 
+    } catch (e) {
+      print('Connection failed: $e');
+    }
     
-    // TODO: เชื่อมต่อกับ platform-specific code เพื่อสแกนอุปกรณ์ Bluetooth
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isSearching = false;
-          // _availableDevices = resultFromBluetoothScan;
-        });
+    // รอระบบเซ็ตตัว 2 วินาที
+    await Future.delayed(const Duration(seconds: 2));
+    _checkConnectionStatus();
+
+    if (mounted) {
+      setState(() {
+        _isConnecting = false;
+      });
+
+      if (_isConnected) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ พบสัญญาณจากตู้ปลา!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ ไม่พบสัญญาณตู้ปลา (กำลังรอข้อมูล...)'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
-    });
-  }
-
-  // ฟังก์ชันเชื่อมต่ออุปกรณ์
-  void _connectToDevice(String deviceName, String deviceAddress) {
-    setState(() {
-      _connectedDevice = deviceName;
-      _isConnected = true;
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Connected to $deviceName'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  // ฟังก์ชันตัดการเชื่อมต่อ
-  void _disconnect() {
-    setState(() {
-      _connectedDevice = null;
-      _isConnected = false;
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200], // พื้นหลังสีเทาอ่อน
+      backgroundColor: Colors.grey[200], 
       appBar: AppBar(
-        automaticallyImplyLeading: false, // เอาปุ่ม back ออก
+        automaticallyImplyLeading: false, 
         backgroundColor: Colors.grey[200],
         elevation: 0,
+        title: const Text(
+          'System Status',
+          style: TextStyle(
+            color: Color(0xFF003C7E),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.black54),
@@ -79,135 +124,156 @@ class _ConnectPageState extends State<ConnectPage> {
         ],
       ),
       body: SingleChildScrollView(
-        // ขยับทุกอย่างลงมาโดยเพิ่ม padding ด้านบน
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20), // เพิ่มระยะห่างด้านบน
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // ปุ่มค้นหาอุปกรณ์
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSearching ? null : _scanDevices,
-                icon: _isSearching 
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Icon(Icons.search),
-                label: Text(_isSearching ? 'Searching...' : 'Search Devices'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF003C7E),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            // ส่วนแสดงสถานะการเชื่อมต่อ
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withOpacity(0.08),
                     spreadRadius: 1,
-                    blurRadius: 8,
-                    offset: const Offset(2, 2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.router,
-                    size: 56,
-                    color: Color(0xFF003C7E),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: _isConnecting 
+                          ? Colors.orange.withOpacity(0.1)
+                          : _isConnected 
+                              ? Colors.green.withOpacity(0.1) 
+                              : Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _isConnecting ? Icons.wifi_find : (_isConnected ? Icons.wifi : Icons.wifi_off),
+                      size: 64,
+                      color: _isConnecting 
+                          ? Colors.orange 
+                          : _isConnected 
+                              ? Colors.green 
+                              : Colors.red,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  if (_connectedDevice != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'เชื่อมต่อแล้ว 1 ตู้',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                  const SizedBox(height: 24),
+                  
+                  Text(
+                    _isConnecting 
+                        ? 'กำลังค้นหาตู้ปลา...' 
+                        : _isConnected 
+                            ? 'เชื่อมต่อตู้ปลาสำเร็จ' 
+                            : 'ขาดการเชื่อมต่อตู้ปลา',
+                    style: TextStyle(
+                      color: _isConnecting 
+                          ? Colors.orange 
+                          : _isConnected 
+                              ? Colors.green 
+                              : Colors.red,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '$_connectedDevice',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _isConnected 
+                        ? 'ระบบกำลังรับ-ส่งข้อมูลแบบ Real-time\nผ่าน HiveMQ Broker' 
+                        : 'ไม่พบสัญญาณจากบอร์ด ESP32\nโปรดตรวจสอบการเสียบปลั๊กไฟที่ตู้ปลา',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                      height: 1.5,
                     ),
-                  ],
-                  if (_isConnected)
-                    Column(
-                      children: [
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _disconnect,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                  ),
+                  
+                  const SizedBox(height: 30),
+                  
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: _isConnecting ? null : _reconnect,
+                      icon: _isConnecting 
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                strokeWidth: 2,
                               ),
-                            ),
-                            child: const Text('Disconnect'),
-                          ),
+                            )
+                          : const Icon(Icons.refresh),
+                      label: Text(
+                        _isConnecting ? 'Connecting...' : 'Reconnect System',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF003C7E),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      ],
+                        elevation: _isConnecting ? 0 : 4,
+                      ),
                     ),
+                  ),
                 ],
               ),
             ),
+            
             const SizedBox(height: 20),
-            
-            // รายการอุปกรณ์ที่พบ
-            Text(
-              'Available Devices',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            
+
             Container(
-              width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(24),
                 color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    spreadRadius: 1,
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: Text(
-                _availableDevices.isEmpty
-                  ? 'ยังไม่มีอุปกรณ์ตัวอย่าง แสดงผลเฉพาะเมื่อสแกนและเชื่อมต่อกับเต้าใช้งานจริง'
-                  : 'พบอุปกรณ์ ${_availableDevices.length} ชิ้น',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Network Details',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDetailRow(Icons.dns, 'Broker', 'broker.hivemq.com'),
+                  const Divider(height: 24),
+                  _buildDetailRow(Icons.tag, 'Port', '1883'),
+                  const Divider(height: 24),
+                  _buildDetailRow(
+                    Icons.security, 
+                    'Security', 
+                    'No SSL (Development)',
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
-      // แถบเมนูด้านล่าง
+      
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
@@ -215,20 +281,20 @@ class _ConnectPageState extends State<ConnectPage> {
             _selectedIndex = index;
           });
           if (index == 0) {
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const DashboardPage()),
             );
           } else if (index == 1) {
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const SetTimePage()),
             );
           }
         },
         backgroundColor: const Color(0xFF003C7E),
-        selectedItemColor: Colors.white.withOpacity(0.9),
-        unselectedItemColor: Colors.white.withOpacity(0.7),
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white.withOpacity(0.5),
         showSelectedLabels: false,
         showUnselectedLabels: false,
         type: BottomNavigationBarType.fixed,
@@ -247,6 +313,32 @@ class _ConnectPageState extends State<ConnectPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String title, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 24, color: Colors.grey[600]),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

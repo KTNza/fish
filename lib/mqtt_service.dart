@@ -12,7 +12,7 @@ class MqttService {
   static const int brokerPort = 1883;
   static final String clientId = 'fish_monitor_app_${DateTime.now().millisecondsSinceEpoch}';
 
-  // 📡 Topics (ต้องตรงกับ Arduino code)
+  // 📡 Topics
   static const String topicTemperature = 'fish/sensors/temperature';
   static const String topicPh = 'fish/sensors/ph';
   static const String topicOxygen = 'fish/sensors/oxygen';
@@ -22,19 +22,28 @@ class MqttService {
   static const String topicControlLight = 'fish/control/light';
   static const String topicControlSettings = 'fish/control/settings';
 
-  bool _isConnected = false;
+  bool _isConnected = false; // สถานะแอป <-> เซิร์ฟเวอร์
   bool _isConnecting = false;
+  
+  // 💓 ระบบจับชีพจรตู้ปลา (Heartbeat)
+  bool _isDeviceOnline = false; // สถานะตู้ปลา <-> เซิร์ฟเวอร์
+  DateTime _lastMessageTime = DateTime.now();
+  Timer? _heartbeatTimer;
+
   Timer? _reconnectTimer;
   static const Duration _reconnectDelay = Duration(seconds: 5);
 
   final _connectionStateController = StreamController<bool>.broadcast();
-  final _sensorDataController =
-      StreamController<Map<String, double>>.broadcast();
+  final _deviceStateController = StreamController<bool>.broadcast(); // แจ้งเตือนเมื่อตู้ปลาดับ
+  final _sensorDataController = StreamController<Map<String, double>>.broadcast();
 
   Stream<bool> get connectionState => _connectionStateController.stream;
+  Stream<bool> get deviceState => _deviceStateController.stream;
   Stream<Map<String, double>> get sensorData => _sensorDataController.stream;
 
+  // อ่านค่าสถานะว่าระบบเชื่อมต่อสมบูรณ์หรือไม่ (ต้องต่อเซิร์ฟเวอร์ติด + ตู้ปลาส่งข้อมูลมา)
   bool get isConnected => _isConnected;
+  bool get isDeviceOnline => _isConnected && _isDeviceOnline;
 
   factory MqttService() {
     return _instance;
@@ -56,50 +65,65 @@ class MqttService {
       
       client = MqttServerClient(brokerUrl, clientId);
       client.port = brokerPort;
-      client.logging(on: true);  // 🔍 เปิด logging สำหรับ debugging
+      client.logging(on: false);  // ปิด log จะได้ไม่รกจอเกินไป
 
-      // ⚙️ ตั้งค่า connection
       client.keepAlivePeriod = 30;
       client.autoReconnect = true;
       client.resubscribeOnAutoReconnect = true;
 
-      // 📍 ตั้งค่า callbacks
       client.onConnected = _onConnected;
       client.onDisconnected = _onDisconnected;
       client.onSubscribed = _onSubscribed;
       client.onSubscribeFail = _onSubscribeFail;
 
-      // 📡 เชื่อมต่อ
       await client.connect();
 
-      // ✅ ตรวจสอบสถานะ
       if (client.connectionStatus!.state == MqttConnectionState.connected) {
         _isConnected = true;
         _isConnecting = false;
         _connectionStateController.add(true);
-        print('✅ MQTT: Connected successfully!');
+        print('✅ MQTT: Connected to Server successfully!');
 
-        // 📥 Subscribe กับ topics
         _subscribeToTopics();
-
-        // 🔄 ยกเลิก reconnect timer
         _reconnectTimer?.cancel();
+        
+        // 💓 เริ่มจับเวลาชีพจรตู้ปลา (เช็กทุก 3 วินาที)
+        _startHeartbeatMonitor();
+        
       } else {
-        throw Exception(
-            '❌ Connection failed: ${client.connectionStatus?.state}');
+        throw Exception('❌ Connection failed: ${client.connectionStatus?.state}');
       }
     } catch (e) {
       _isConnected = false;
       _isConnecting = false;
+      _isDeviceOnline = false;
       _connectionStateController.add(false);
       print('❌ MQTT Connection Error: $e');
-
-      // 🔄 พยายาม reconnect
       _scheduleReconnect();
     }
   }
 
-  // 📥 Subscribe กับ topics
+  // 💓 ฟังก์ชันเฝ้าระวังชีพจรตู้ปลา
+  void _startHeartbeatMonitor() {
+    _heartbeatTimer?.cancel();
+    _lastMessageTime = DateTime.now(); // รีเซ็ตเวลาเริ่มต้น
+    
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!_isConnected) return;
+
+      // ตู้ปลาส่งข้อมูลทุกๆ 5 วินาที ถ้าหายไปเกิน 15 วินาทีแปลว่าเน็ตหลุด/ถอดปลั๊ก
+      final secondsSinceLastMessage = DateTime.now().difference(_lastMessageTime).inSeconds;
+      
+      if (secondsSinceLastMessage > 15) {
+        if (_isDeviceOnline) {
+          print('⚠️ ตู้ปลาขาดการติดต่อ (ออฟไลน์)!');
+          _isDeviceOnline = false;
+          _deviceStateController.add(false);
+        }
+      }
+    });
+  }
+
   void _subscribeToTopics() {
     try {
       client.subscribe(topicTemperature, MqttQos.atMostOnce);
@@ -110,7 +134,6 @@ class MqttService {
 
       print('✅ MQTT: Subscribed to all topics');
 
-      // 📨 รับข้อมูล
       client.updates!.listen(
         (List<MqttReceivedMessage<MqttMessage>> messages) {
           for (var message in messages) {
@@ -118,6 +141,14 @@ class MqttService {
             final payload = message.payload as MqttPublishMessage;
             final payloadBytes = payload.payload.message;
             final payloadStr = String.fromCharCodes(payloadBytes);
+
+            // 💓 ทุกครั้งที่ได้รับข้อความ แปลว่าตู้ปลายังมีชีวิตอยู่! อัปเดตเวลาล่าสุดทันที
+            _lastMessageTime = DateTime.now();
+            if (!_isDeviceOnline) {
+              _isDeviceOnline = true;
+              _deviceStateController.add(true);
+              print('🎉 ตู้ปลากลับมาออนไลน์แล้ว!');
+            }
 
             _processSensorMessage(topic, payloadStr);
           }
@@ -137,7 +168,6 @@ class MqttService {
     }
   }
 
-  // 🧮 ประมวลผลข้อมูลจากเซนเซอร์
   void _processSensorMessage(String topic, String payload) {
     try {
       final value = double.tryParse(payload) ?? 0.0;
@@ -145,18 +175,12 @@ class MqttService {
 
       if (topic == topicTemperature) {
         sensorMap['temperature'] = value;
-        print('📊 Temperature: $value°C');
       } else if (topic == topicPh) {
         sensorMap['phValue'] = value;
-        print('📊 pH: $value');
       } else if (topic == topicOxygen) {
         sensorMap['oxygenLevel'] = value;
-        print('📊 Oxygen: $value mg/L');
       } else if (topic == topicTurbidity) {
         sensorMap['turbidity'] = value;
-        print('📊 Turbidity: $value NTU');
-      } else if (topic == topicStatus) {
-        print('📊 Status: $payload');
       }
 
       if (sensorMap.isNotEmpty) {
@@ -167,7 +191,6 @@ class MqttService {
     }
   }
 
-  // 🔄 Callbacks
   void _onConnected() {
     print('✅ MQTT: onConnected callback');
     _isConnected = true;
@@ -177,22 +200,19 @@ class MqttService {
   void _onDisconnected() {
     print('⚠️ MQTT: onDisconnected callback');
     _isConnected = false;
+    _isDeviceOnline = false;
+    _heartbeatTimer?.cancel();
     _connectionStateController.add(false);
+    _deviceStateController.add(false);
     _scheduleReconnect();
   }
 
-  void _onSubscribed(String topic) {
-    print('✅ MQTT: Subscribed to $topic');
-  }
+  void _onSubscribed(String topic) {}
 
-  void _onSubscribeFail(String topic) {
-    print('❌ MQTT: Failed to subscribe to $topic');
-  }
+  void _onSubscribeFail(String topic) {}
 
-  // ⏱️ ตั้งเวลา reconnect
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    print('⏳ MQTT: Scheduling reconnect in ${_reconnectDelay.inSeconds}s...');
     _reconnectTimer = Timer(_reconnectDelay, () {
       if (!_isConnected && !_isConnecting) {
         connect();
@@ -200,14 +220,11 @@ class MqttService {
     });
   }
 
-  // � Publish a plain-text message
-  bool publish(String topic, String payload,
-      {MqttQos qos = MqttQos.atMostOnce}) {
+  bool publish(String topic, String payload, {MqttQos qos = MqttQos.atMostOnce}) {
     if (!_isConnected || client.connectionStatus?.state != MqttConnectionState.connected) {
       print('⚠️ MQTT publish failed: not connected');
       return false;
     }
-
     final builder = MqttClientPayloadBuilder();
     builder.addString(payload);
     client.publishMessage(topic, qos, builder.payload!);
@@ -215,18 +232,18 @@ class MqttService {
     return true;
   }
 
-  bool publishJson(String topic, Map<String, dynamic> data,
-      {MqttQos qos = MqttQos.atMostOnce}) {
+  bool publishJson(String topic, Map<String, dynamic> data, {MqttQos qos = MqttQos.atMostOnce}) {
     return publish(topic, jsonEncode(data), qos: qos);
   }
 
-  // �🔌 Disconnect
   void disconnect() {
     try {
       _reconnectTimer?.cancel();
+      _heartbeatTimer?.cancel();
       client.disconnect();
       _isConnected = false;
       _isConnecting = false;
+      _isDeviceOnline = false;
       _connectionStateController.add(false);
       print('✅ MQTT: Disconnected');
     } catch (e) {
@@ -234,10 +251,10 @@ class MqttService {
     }
   }
 
-  // 🧹 Cleanup
   void dispose() {
     disconnect();
     _connectionStateController.close();
+    _deviceStateController.close();
     _sensorDataController.close();
   }
 }
