@@ -408,7 +408,8 @@ class _SetTimePageState extends State<SetTimePage> {
     setState(() {
       _isLightOn = _computeLightOn(now, _lightTime, _lightOffTime);
     });
-    _publishControlCommand(MqttService.topicControlLight, _isLightOn ? 'light_on' : 'light_off');
+    _publishControlCommand(
+        MqttService.topicControlLight, _isLightOn ? 'light_on' : 'light_off');
     if (_isTimerRunning && _countdownEndTimeMillis != null) {
       final now = DateTime.now();
       final endTime =
@@ -483,11 +484,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedHour == index
-                                          ? const Color(0xFF003C7E)
-                                          : Colors.black,
+                                            ? const Color(0xFF003C7E)
+                                            : Colors.black,
                                         fontWeight: selectedHour == index
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -524,11 +525,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedMinute == index
-                                          ? const Color(0xFF003C7E)
-                                          : Colors.black,
+                                            ? const Color(0xFF003C7E)
+                                            : Colors.black,
                                         fontWeight: selectedMinute == index
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -621,11 +622,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedHour == index
-                                          ? const Color(0xFF003C7E)
-                                          : Colors.black,
+                                            ? const Color(0xFF003C7E)
+                                            : Colors.black,
                                         fontWeight: selectedHour == index
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -661,11 +662,11 @@ class _SetTimePageState extends State<SetTimePage> {
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: selectedMinute == index
-                                          ? const Color(0xFF003C7E)
-                                          : Colors.black,
+                                            ? const Color(0xFF003C7E)
+                                            : Colors.black,
                                         fontWeight: selectedMinute == index
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
                                   );
@@ -1195,6 +1196,7 @@ class _SetTimePageState extends State<SetTimePage> {
                   _sendTimeSettingsToDevice();
                   _saveLightSettings();
                   _scheduleLightNotifications();
+                  _startLightTimer();
                 });
               },
             ),
@@ -1214,12 +1216,13 @@ class _SetTimePageState extends State<SetTimePage> {
                   _sendTimeSettingsToDevice();
                   _saveLightSettings();
                   _scheduleLightNotifications();
+                  _startLightTimer();
                 });
               },
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // 💡 เพิ่มใหม่: ส่วนควบคุมไฟแบบ Manual 💡
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1263,15 +1266,17 @@ class _SetTimePageState extends State<SetTimePage> {
                         _isLightOn = value;
                       });
                       _saveLightSettings();
-                      
+
                       // ส่งคำสั่งไปที่ตู้ปลา ESP32 ทันที
-                      _publishControlCommand(
-                          MqttService.topicControlLight, value ? 'light_on' : 'light_off');
+                      _publishControlCommand(MqttService.topicControlLight,
+                          value ? 'light_on' : 'light_off');
 
                       // เด้งข้อความแจ้งเตือนด้านล่างจอ
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(value ? '💡 Light turned ON manually' : '💡 Light turned OFF manually'),
+                          content: Text(value
+                              ? '💡 Light turned ON manually'
+                              : '💡 Light turned OFF manually'),
                           backgroundColor: const Color(0xFF003C7E),
                           duration: const Duration(seconds: 1),
                         ),
@@ -1286,7 +1291,6 @@ class _SetTimePageState extends State<SetTimePage> {
               ),
             ),
             // สิ้นสุดส่วนควบคุมไฟแบบ Manual
-
           ],
         ),
       ),
