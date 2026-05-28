@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -12,11 +13,14 @@ class NotificationService {
   factory NotificationService() => _instance;
 
   static const String _historyPreferencesKey = 'notificationHistory';
+  static const String _readCountPreferencesKey = 'notificationReadCount';
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   final List<Map<String, String>> _notificationHistory = [];
+  int _readNotificationCount = 0;
+  final ValueNotifier<bool> hasUnreadNotifications = ValueNotifier(false);
 
   List<Map<String, String>> get notificationHistory =>
       List.unmodifiable(_notificationHistory);
@@ -73,6 +77,13 @@ class NotificationService {
         // Ignore malformed entries.
       }
     }
+
+    _readNotificationCount = prefs.getInt(_readCountPreferencesKey) ?? 0;
+    if (_readNotificationCount > _notificationHistory.length) {
+      _readNotificationCount = _notificationHistory.length;
+    }
+    hasUnreadNotifications.value =
+        _notificationHistory.length > _readNotificationCount;
   }
 
   Future<void> _saveHistory() async {
@@ -82,8 +93,18 @@ class NotificationService {
     await prefs.setStringList(_historyPreferencesKey, stored);
   }
 
-  bool _isDuplicateHistoryEntry(
-      String title, String body, String time) {
+  Future<void> _saveReadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_readCountPreferencesKey, _readNotificationCount);
+  }
+
+  void markNotificationsRead() {
+    _readNotificationCount = _notificationHistory.length;
+    hasUnreadNotifications.value = false;
+    _saveReadCount();
+  }
+
+  bool _isDuplicateHistoryEntry(String title, String body, String time) {
     if (_notificationHistory.isEmpty) {
       return false;
     }
@@ -108,6 +129,7 @@ class NotificationService {
       'time': time,
     });
     await _saveHistory();
+    hasUnreadNotifications.value = true;
   }
 
   Future<void> scheduleNotification({

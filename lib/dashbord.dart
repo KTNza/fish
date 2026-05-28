@@ -17,7 +17,6 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
-  bool _hasNotification = false;
   bool _hasBoardSensorData = false;
   bool _isMqttConnected = false;
 
@@ -54,7 +53,6 @@ class _DashboardPageState extends State<DashboardPage> {
     _notifications
       ..clear()
       ..addAll(NotificationService().notificationHistory);
-    _hasNotification = _notifications.isNotEmpty;
   }
 
   void _startSensorListener() {
@@ -258,7 +256,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     setState(() {
-      _hasNotification = true;
       _notifications.insert(0, {
         'title': title,
         'message': message,
@@ -316,33 +313,39 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_none, color: Colors.black54),
-                if (_hasNotification)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
+          ValueListenableBuilder<bool>(
+            valueListenable: NotificationService().hasUnreadNotifications,
+            builder: (context, hasUnread, child) {
+              return IconButton(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications_none, color: Colors.black54),
+                    if (hasUnread)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  NotificationService().markNotificationsRead();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationPage(
+                        notifications: _notifications,
                       ),
                     ),
-                  ),
-              ],
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => NotificationPage(
-                    notifications: _notifications,
-                  ),
-                ),
+                  );
+                },
               );
             },
           ),

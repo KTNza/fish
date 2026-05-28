@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dashbord.dart';
+import 'Notification.dart';
+import 'notification_service.dart';
 import 'settime.dart';
 import 'mqtt_service.dart';
 
@@ -13,24 +15,24 @@ class ConnectPage extends StatefulWidget {
 }
 
 class _ConnectPageState extends State<ConnectPage> {
-  int _selectedIndex = 2; 
-  
+  int _selectedIndex = 2;
+
   bool _isConnecting = false;
-  bool _isConnected = false; 
+  bool _isConnected = false;
   Timer? _statusCheckTimer;
 
   @override
   void initState() {
     super.initState();
     _checkConnectionStatus();
-    
+
     // 🔥 เพิ่มระบบ Auto-Connect: ถ้าเปิดหน้านี้มาแล้วยังไม่ต่อเน็ต ให้มันพยายามต่อเองเลย!
     if (!MqttService().isConnected && !_isConnecting) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _reconnect();
       });
     }
-    
+
     // ตั้งเวลาเช็กชีพจรตู้ปลาทุกๆ 2 วินาที แบบ Real-time
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       _checkConnectionStatus();
@@ -64,11 +66,11 @@ class _ConnectPageState extends State<ConnectPage> {
 
     try {
       // สั่งให้แอปต่อเซิร์ฟเวอร์ใหม่
-      await MqttService().connect(); 
+      await MqttService().connect();
     } catch (e) {
       print('Connection failed: $e');
     }
-    
+
     // รอระบบเซ็ตตัว 2 วินาที
     await Future.delayed(const Duration(seconds: 2));
     _checkConnectionStatus();
@@ -101,9 +103,9 @@ class _ConnectPageState extends State<ConnectPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200], 
+      backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        automaticallyImplyLeading: false, 
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.grey[200],
         elevation: 0,
         title: const Text(
@@ -115,10 +117,33 @@ class _ConnectPageState extends State<ConnectPage> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black54),
-            onPressed: () {
-              Navigator.pushNamed(context, '/notification');
+          ValueListenableBuilder<bool>(
+            valueListenable: NotificationService().hasUnreadNotifications,
+            builder: (context, hasUnread, child) {
+              return IconButton(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications_none, color: Colors.black54),
+                    if (hasUnread)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  NotificationService().markNotificationsRead();
+                  Navigator.pushNamed(context, '/notification');
+                },
+              );
             },
           ),
         ],
@@ -147,36 +172,37 @@ class _ConnectPageState extends State<ConnectPage> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: _isConnecting 
+                      color: _isConnecting
                           ? Colors.orange.withOpacity(0.1)
-                          : _isConnected 
-                              ? Colors.green.withOpacity(0.1) 
+                          : _isConnected
+                              ? Colors.green.withOpacity(0.1)
                               : Colors.red.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      _isConnecting ? Icons.wifi_find : (_isConnected ? Icons.wifi : Icons.wifi_off),
+                      _isConnecting
+                          ? Icons.wifi_find
+                          : (_isConnected ? Icons.wifi : Icons.wifi_off),
                       size: 64,
-                      color: _isConnecting 
-                          ? Colors.orange 
-                          : _isConnected 
-                              ? Colors.green 
+                      color: _isConnecting
+                          ? Colors.orange
+                          : _isConnected
+                              ? Colors.green
                               : Colors.red,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
                   Text(
-                    _isConnecting 
-                        ? 'กำลังค้นหาตู้ปลา...' 
-                        : _isConnected 
-                            ? 'เชื่อมต่อตู้ปลาสำเร็จ' 
+                    _isConnecting
+                        ? 'กำลังค้นหาตู้ปลา...'
+                        : _isConnected
+                            ? 'เชื่อมต่อตู้ปลาสำเร็จ'
                             : 'ขาดการเชื่อมต่อตู้ปลา',
                     style: TextStyle(
-                      color: _isConnecting 
-                          ? Colors.orange 
-                          : _isConnected 
-                              ? Colors.green 
+                      color: _isConnecting
+                          ? Colors.orange
+                          : _isConnected
+                              ? Colors.green
                               : Colors.red,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -184,8 +210,8 @@ class _ConnectPageState extends State<ConnectPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isConnected 
-                        ? 'ระบบกำลังรับ-ส่งข้อมูลแบบ Real-time\nผ่าน HiveMQ Broker' 
+                    _isConnected
+                        ? 'ระบบกำลังรับ-ส่งข้อมูลแบบ Real-time\nผ่าน HiveMQ Broker'
                         : 'ไม่พบสัญญาณจากบอร์ด ESP32\nโปรดตรวจสอบการเสียบปลั๊กไฟที่ตู้ปลา',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -194,27 +220,27 @@ class _ConnectPageState extends State<ConnectPage> {
                       height: 1.5,
                     ),
                   ),
-                  
                   const SizedBox(height: 30),
-                  
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton.icon(
                       onPressed: _isConnecting ? null : _reconnect,
-                      icon: _isConnecting 
+                      icon: _isConnecting
                           ? const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                                 strokeWidth: 2,
                               ),
                             )
                           : const Icon(Icons.refresh),
                       label: Text(
                         _isConnecting ? 'Connecting...' : 'Reconnect System',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF003C7E),
@@ -229,9 +255,7 @@ class _ConnectPageState extends State<ConnectPage> {
                 ],
               ),
             ),
-            
             const SizedBox(height: 20),
-
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -263,8 +287,8 @@ class _ConnectPageState extends State<ConnectPage> {
                   _buildDetailRow(Icons.tag, 'Port', '1883'),
                   const Divider(height: 24),
                   _buildDetailRow(
-                    Icons.security, 
-                    'Security', 
+                    Icons.security,
+                    'Security',
                     'No SSL (Development)',
                   ),
                 ],
@@ -273,7 +297,6 @@ class _ConnectPageState extends State<ConnectPage> {
           ],
         ),
       ),
-      
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {

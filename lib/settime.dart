@@ -60,9 +60,6 @@ class _SetTimePageState extends State<SetTimePage> {
   Timer? _lightTimer;
   bool _isLightOn = false;
 
-  // สถานะแจ้งเตือน
-  bool _hasNotification = false;
-
   // รายการแจ้งเตือน
   final List<Map<String, String>> _notifications = [];
 
@@ -210,14 +207,13 @@ class _SetTimePageState extends State<SetTimePage> {
   }
 
   // ฟังก์ชันเมื่อถึงเวลาให้อาหาร
-  void _triggerFeeding() {
+  void _triggerFeeding({bool restartCountdown = true}) {
     final now = TimeOfDay.now();
     final timeString =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     setState(() {
       _isFeeding = true;
-      _hasNotification = true;
       _notifications.insert(0, {
         'title': 'Feed Fish',
         'message': 'Time to feed the fish ($timeString)',
@@ -246,12 +242,13 @@ class _SetTimePageState extends State<SetTimePage> {
 
     _publishControlCommand(MqttService.topicControlFeed, 'feed');
 
-    // รอ 3 วินาทีแล้วเริ่มนับถอยหลังใหม่
+    // รอ 3 วินาทีแล้วคืนสถานะให้อาหารเสร็จ
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _isFeeding = false;
-        });
+      if (!mounted) return;
+      setState(() {
+        _isFeeding = false;
+      });
+      if (restartCountdown && _isTimerRunning) {
         _startCountdown();
       }
     });
@@ -299,7 +296,6 @@ class _SetTimePageState extends State<SetTimePage> {
       if (nowMinutes == lightOnMinutes && !_isLightOn) {
         setState(() {
           _isLightOn = true;
-          _hasNotification = true;
           _notifications.insert(0, {
             'title': 'Lights On',
             'message': 'Lights turned on at $timeString',
@@ -330,7 +326,6 @@ class _SetTimePageState extends State<SetTimePage> {
       if (nowMinutes == lightOffMinutes && _isLightOn) {
         setState(() {
           _isLightOn = false;
-          _hasNotification = true;
           _notifications.insert(0, {
             'title': 'Lights Off',
             'message': 'Lights turned off at $timeString',
@@ -1105,7 +1100,7 @@ class _SetTimePageState extends State<SetTimePage> {
                 SizedBox(
                   height: 36,
                   child: ElevatedButton.icon(
-                    onPressed: _triggerFeeding,
+                    onPressed: () => _triggerFeeding(restartCountdown: false),
                     icon: const Icon(Icons.restaurant, size: 14),
                     label: const Text('Feed', style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
@@ -1138,36 +1133,39 @@ class _SetTimePageState extends State<SetTimePage> {
         backgroundColor: Colors.grey[200],
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_none, color: Colors.black54),
-                if (_hasNotification)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
+          ValueListenableBuilder<bool>(
+            valueListenable: NotificationService().hasUnreadNotifications,
+            builder: (context, hasUnread, child) {
+              return IconButton(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications_none, color: Colors.black54),
+                    if (hasUnread)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  NotificationService().markNotificationsRead();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationPage(
+                        notifications: _notifications,
                       ),
                     ),
-                  ),
-              ],
-            ),
-            onPressed: () {
-              setState(() {
-                _hasNotification = false;
-              });
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => NotificationPage(
-                    notifications: _notifications,
-                  ),
-                ),
+                  );
+                },
               );
             },
           ),
