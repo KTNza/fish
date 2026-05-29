@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const SplashScreen(), // <-- หน้าแรกคือ Splash Screen
         '/dashboard': (context) => const DashboardPage(), // หน้าแดชบอร์ด
-        '/notification': (context) => const NotificationPage(), // หน้าแจ้งเตือน
+        '/notification': (context) => const NotificationPage(), // หน้าแจ้งเตือนนะจ้ะพี่น้อง
       },
     );
   }
