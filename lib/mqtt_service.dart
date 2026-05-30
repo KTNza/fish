@@ -13,18 +13,18 @@ class MqttService {
   static final String clientId = 'fish_monitor_app_${DateTime.now().millisecondsSinceEpoch}';
 
   // 📡 Topics
-  static const String topicTemperature = 'fish/sensors/temperature';
-  static const String topicPh = 'fish/sensors/ph';
-  static const String topicOxygen = 'fish/sensors/oxygen';
-  static const String topicTurbidity = 'fish/sensors/turbidity';
-  static const String topicStatus = 'fish/status';
-  static const String topicControlFeed = 'fish/control/feed';
-  static const String topicControlLight = 'fish/control/light';
-  static const String topicControlSettings = 'fish/control/settings';
+  static const String topicTemperature     = 'kritanai/fish/sensors/temperature';
+  static const String topicPh              = 'kritanai/fish/sensors/ph';
+  static const String topicOxygen          = 'kritanai/fish/sensors/oxygen';
+  static const String topicTurbidity       = 'kritanai/fish/sensors/turbidity';
+  static const String topicStatus          = 'kritanai/fish/status';
+  static const String topicControlFeed     = 'kritanai/fish/control/feed';
+  static const String topicControlLight    = 'kritanai/fish/control/light';
+  static const String topicControlSettings = 'kritanai/fish/control/settings';
 
   bool _isConnected = false; // สถานะแอป <-> เซิร์ฟเวอร์
   bool _isConnecting = false;
-  
+
   // 💓 ระบบจับชีพจรตู้ปลา (Heartbeat)
   bool _isDeviceOnline = false; // สถานะตู้ปลา <-> เซิร์ฟเวอร์
   DateTime _lastMessageTime = DateTime.now();
@@ -62,7 +62,7 @@ class MqttService {
 
     try {
       print('🔌 MQTT: Connecting to $brokerUrl:$brokerPort...');
-      
+
       client = MqttServerClient(brokerUrl, clientId);
       client.port = brokerPort;
       client.logging(on: false);  // ปิด log จะได้ไม่รกจอเกินไป
@@ -86,10 +86,10 @@ class MqttService {
 
         _subscribeToTopics();
         _reconnectTimer?.cancel();
-        
+
         // 💓 เริ่มจับเวลาชีพจรตู้ปลา (เช็กทุก 3 วินาที)
         _startHeartbeatMonitor();
-        
+
       } else {
         throw Exception('❌ Connection failed: ${client.connectionStatus?.state}');
       }
@@ -107,13 +107,13 @@ class MqttService {
   void _startHeartbeatMonitor() {
     _heartbeatTimer?.cancel();
     _lastMessageTime = DateTime.now(); // รีเซ็ตเวลาเริ่มต้น
-    
+
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (!_isConnected) return;
 
       // ตู้ปลาส่งข้อมูลทุกๆ 5 วินาที ถ้าหายไปเกิน 15 วินาทีแปลว่าเน็ตหลุด/ถอดปลั๊ก
       final secondsSinceLastMessage = DateTime.now().difference(_lastMessageTime).inSeconds;
-      
+
       if (secondsSinceLastMessage > 15) {
         if (_isDeviceOnline) {
           print('⚠️ ตู้ปลาขาดการติดต่อ (ออฟไลน์)!');
@@ -135,7 +135,7 @@ class MqttService {
       print('✅ MQTT: Subscribed to all topics');
 
       client.updates!.listen(
-        (List<MqttReceivedMessage<MqttMessage>> messages) {
+            (List<MqttReceivedMessage<MqttMessage>> messages) {
           for (var message in messages) {
             final topic = message.topic;
             final payload = message.payload as MqttPublishMessage;
@@ -253,8 +253,9 @@ class MqttService {
 
   void dispose() {
     disconnect();
-    _connectionStateController.close();
-    _deviceStateController.close();
-    _sensorDataController.close();
+    // ❌ คอมเมนต์ปิดไว้ ห้ามทำลายท่อ Stream เพื่อป้องกัน Error: Bad state ตอนสลับหน้าจอ
+    // _connectionStateController.close();
+    // _deviceStateController.close();
+    // _sensorDataController.close();
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'database_service.dart';
 import 'mqtt_service.dart';
 
@@ -6,117 +7,68 @@ class SensorDataManager {
   final _databaseService = DatabaseService();
   final _mqttService = MqttService();
 
-  factory SensorDataManager() {
-    return _instance;
-  }
+  // ✅ Stream ส่งตรงไป UI ทันที ไม่ผ่าน DB
+  final _sensorStreamController = StreamController<Map<String, double>>.broadcast();
+  Stream<Map<String, double>> get sensorStream => _sensorStreamController.stream;
 
+  // ✅ เก็บค่าล่าสุดในหน่วยความจำ ไม่ต้อง query DB
+  final Map<String, double> _latestValues = {
+    'temperature': 0.0,
+    'phValue':     0.0,
+    'oxygenLevel': 0.0,
+    'turbidity':   0.0,
+  };
+
+  factory SensorDataManager() => _instance;
   SensorDataManager._internal();
 
-  // เชื่อมต่อ MQTT
   Future<void> initializeMqtt() async {
     try {
       await _mqttService.connect();
-
-      // ฟังข้อมูลจาก MQTT แล้วบันทึกลงฐานข้อมูล
-      _mqttService.sensorData.listen((sensorMap) {
-        _handleSensorData(sensorMap);
-      });
+      _mqttService.sensorData.listen(_handleSensorData);
     } catch (e) {
       print('Error initializing MQTT: $e');
     }
   }
 
-  // จัดการข้อมูลที่ได้จาก MQTT
-  void _handleSensorData(Map<String, double> sensorMap) async {
-    // ดึงข้อมูล latest ลงเอก
-    final latest = await getLatestSensorData();
+  void _handleSensorData(Map<String, double> sensorMap) {
+    // ✅ merge ค่าใหม่เข้า _latestValues (ใน memory ทันที)
+    if (sensorMap['temperature'] != null) _latestValues['temperature'] = sensorMap['temperature']!;
+    if (sensorMap['phValue']     != null) _latestValues['phValue']     = sensorMap['phValue']!;
+    if (sensorMap['oxygenLevel'] != null) _latestValues['oxygenLevel'] = sensorMap['oxygenLevel']!;
+    if (sensorMap['turbidity']   != null) _latestValues['turbidity']   = sensorMap['turbidity']!;
 
-    double temperature = latest?['temperature'] ?? 0.0;
-    double ph = latest?['ph_value'] ?? 0.0;
-    double oxygen = latest?['oxygen_level'] ?? 0.0;
-    double turbidity = latest?['turbidity'] ?? 0.0;
+    // ✅ ยิงไป UI ทันที
+    _sensorStreamController.add(Map.from(_latestValues));
 
-    // อัปเดตด้วยค่าใหม่
-    temperature = sensorMap['temperature'] ?? temperature;
-    ph = sensorMap['phValue'] ?? ph;
-    oxygen = sensorMap['oxygenLevel'] ?? oxygen;
-    turbidity = sensorMap['turbidity'] ?? turbidity;
-
-    // บันทึกลงฐานข้อมูล
-    await _databaseService.saveSensorData(
-      temperature: temperature,
-      phValue: ph,
-      oxygenLevel: oxygen,
-      turbidity: turbidity,
+    // ✅ บันทึก DB แบบ fire-and-forget ไม่บล็อก
+    _databaseService.saveSensorData(
+      temperature:  _latestValues['temperature']!,
+      phValue:      _latestValues['phValue']!,
+      oxygenLevel:  _latestValues['oxygenLevel']!,
+      turbidity:    _latestValues['turbidity']!,
     );
   }
 
-  // บันทึกข้อมูลเซนเซอร์
-  Future<int> saveSensorData({
-    required double temperature,
-    required double phValue,
-    required double oxygenLevel,
-    required double turbidity,
-  }) {
-    return _databaseService.saveSensorData(
-      temperature: temperature,
-      phValue: phValue,
-      oxygenLevel: oxygenLevel,
-      turbidity: turbidity,
-    );
+  // ที่เหลือเหมือนเดิมทุกอย่าง
+  Future<int> saveSensorData({required double temperature, required double phValue, required double oxygenLevel, required double turbidity}) {
+    return _databaseService.saveSensorData(temperature: temperature, phValue: phValue, oxygenLevel: oxygenLevel, turbidity: turbidity);
   }
+  Future<Map<String, dynamic>?> getLatestSensorData() => _databaseService.getLatestSensorData();
+  Future<List<Map<String, dynamic>>> getAllSensorData() => _databaseService.getAllSensorData();
+  Future<List<Map<String, dynamic>>> getTodaySensorData() => _databaseService.getTodaySensorData();
+  Future<int> saveAlert({required String title, required String message, required String type}) => _databaseService.saveAlert(title: title, message: message, type: type);
+  Future<List<Map<String, dynamic>>> getAllAlerts() => _databaseService.getAllAlerts();
+  bool isMqttConnected() => _mqttService.isConnected;
+  Stream<bool> getMqttConnectionStatus() => _mqttService.connectionState;
+  Future<int> cleanOldData() => _databaseService.cleanOldData();
 
-  // ดึงข้อมูลเซนเซอร์ล่าสุด
-  Future<Map<String, dynamic>?> getLatestSensorData() {
-    return _databaseService.getLatestSensorData();
-  }
-
-  // ดึงข้อมูลเซนเซอร์ทั้งหมด
-  Future<List<Map<String, dynamic>>> getAllSensorData() {
-    return _databaseService.getAllSensorData();
-  }
-
-  // ดึงข้อมูลเซนเซอร์ของวันนี้
-  Future<List<Map<String, dynamic>>> getTodaySensorData() {
-    return _databaseService.getTodaySensorData();
-  }
-
-  // บันทึกการแจ้งเตือน
-  Future<int> saveAlert({
-    required String title,
-    required String message,
-    required String type,
-  }) {
-    return _databaseService.saveAlert(
-      title: title,
-      message: message,
-      type: type,
-    );
-  }
-
-  // ดึงการแจ้งเตือนทั้งหมด
-  Future<List<Map<String, dynamic>>> getAllAlerts() {
-    return _databaseService.getAllAlerts();
-  }
-
-  // ตรวจสอบสถานะการเชื่อมต่อ MQTT
-  bool isMqttConnected() {
-    return _mqttService.isConnected;
-  }
-
-  // ดึง stream สถานะการเชื่อมต่อ
-  Stream<bool> getMqttConnectionStatus() {
-    return _mqttService.connectionState;
-  }
-
-  // ลบข้อมูลเก่า
-  Future<int> cleanOldData() {
-    return _databaseService.cleanOldData();
-  }
-
-  // ปิดการเชื่อมต่อ
   void dispose() {
-    _mqttService.dispose();
-    _databaseService.close();
+    // ❌ คอมเมนต์ปิดไว้ Service พวกนี้เราต้องใช้ตลอดชีพ ห้ามปิดท่อ Stream เด็ดขาด
+    // _sensorStreamController.close();
+    // _mqttService.dispose();
+
+    // ส่วน DB จะปิดหรือไม่ปิดก็ได้ แต่สำหรับ Singleton แนะนำให้เปิดค้างไว้เลยจะเสถียรกว่าครับ
+    // _databaseService.close();
   }
 }
