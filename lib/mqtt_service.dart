@@ -15,7 +15,7 @@ class MqttService {
   // 📡 Topics
   static const String topicTemperature     = 'kritanai/fish/sensors/temperature';
   static const String topicPh              = 'kritanai/fish/sensors/ph';
-  static const String topicOxygen          = 'kritanai/fish/sensors/oxygen';
+  static const String topicOxygen          = 'kritanai/fish/sensors/oxygen_estimated';
   static const String topicTurbidity       = 'kritanai/fish/sensors/turbidity';
   static const String topicStatus          = 'kritanai/fish/status';
   static const String topicControlFeed     = 'kritanai/fish/control/feed';
@@ -37,9 +37,15 @@ class MqttService {
   final _deviceStateController = StreamController<bool>.broadcast(); // แจ้งเตือนเมื่อตู้ปลาดับ
   final _sensorDataController = StreamController<Map<String, double>>.broadcast();
 
+  // ✅ เพิ่ม StreamController สำหรับส่งข้อมูลสถานะอาหารปลา (ส่งเป็นข้อความ)
+  final _foodStatusController = StreamController<String>.broadcast();
+
   Stream<bool> get connectionState => _connectionStateController.stream;
   Stream<bool> get deviceState => _deviceStateController.stream;
   Stream<Map<String, double>> get sensorData => _sensorDataController.stream;
+
+  // ✅ ดึงค่าสถานะอาหารปลาไปใช้งานใน Dashboard
+  Stream<String> get foodStatus => _foodStatusController.stream;
 
   // อ่านค่าสถานะว่าระบบเชื่อมต่อสมบูรณ์หรือไม่ (ต้องต่อเซิร์ฟเวอร์ติด + ตู้ปลาส่งข้อมูลมา)
   bool get isConnected => _isConnected;
@@ -170,6 +176,12 @@ class MqttService {
 
   void _processSensorMessage(String topic, String payload) {
     try {
+      // ✅ ดักจับสถานะอาหารปลาก่อนเลย (เพราะค่าเป็นข้อความ "LOW" / "FULL")
+      if (topic == topicStatus) {
+        _foodStatusController.add(payload);
+        return; // ได้ข้อความแล้วออกจากฟังก์ชันทันที ไม่ต้องแปลงเป็นตัวเลข
+      }
+
       final value = double.tryParse(payload) ?? 0.0;
       final sensorMap = <String, double>{};
 
@@ -257,5 +269,6 @@ class MqttService {
     // _connectionStateController.close();
     // _deviceStateController.close();
     // _sensorDataController.close();
+    // _foodStatusController.close(); // ✅ คอมเมนต์ปิดไว้เช่นกัน
   }
 }

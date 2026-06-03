@@ -39,7 +39,6 @@ class _ConnectPageState extends State<ConnectPage>
   bool _isConnected  = false;
   Timer? _statusCheckTimer;
 
-  // ── ของเดิมที่หายไป ──
   final SensorDataManager _sensorManager = SensorDataManager();
   final List<Map<String, String>> _notifications = [];
 
@@ -104,21 +103,23 @@ class _ConnectPageState extends State<ConnectPage>
     }
 
     await Future.delayed(const Duration(seconds: 2));
+
+    // ✅ เพิ่มการเช็ค mounted ป้องกันแอปเด้ง
+    if (!mounted) return;
+
     _checkConnectionStatus();
 
-    if (mounted) {
-      setState(() => _isConnecting = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          _isConnected ? '✅ พบสัญญาณจากตู้ปลา!' : '❌ ไม่พบสัญญาณตู้ปลา',
-        ),
-        backgroundColor: _isConnected ? _C.teal : _C.danger,
-        duration: const Duration(seconds: 2),
-      ));
-    }
+    setState(() => _isConnecting = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        _isConnected ? '✅ พบสัญญาณจากตู้ปลา!' : '❌ ไม่พบสัญญาณตู้ปลา',
+      ),
+      backgroundColor: _isConnected ? _C.teal : _C.danger,
+      duration: const Duration(seconds: 2),
+    ));
   }
 
-  // [FIX] Navigator เหมือน Dashboard
+  // Navigator เหมือน Dashboard
   void _onNavTap(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
@@ -160,9 +161,10 @@ class _ConnectPageState extends State<ConnectPage>
         ? 'เชื่อมต่อสำเร็จ'
         : 'ขาดการเชื่อมต่อ';
 
+    // ✅ อัปเดตข้อความเป็น UNO R4
     final String statusSub = _isConnected
         ? 'รับ-ส่งข้อมูล Real-time\nผ่าน HiveMQ Broker'
-        : 'ไม่พบสัญญาณจากบอร์ด ESP32\nโปรดตรวจสอบการเสียบปลั๊กที่ตู้ปลา';
+        : 'ไม่พบสัญญาณจากบอร์ด UNO R4\nโปรดตรวจสอบการเสียบปลั๊กที่ตู้ปลา';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -295,10 +297,11 @@ class _ConnectPageState extends State<ConnectPage>
                     accentColor: _C.teal,
                   ),
                   const SizedBox(height: 12),
+                  // ✅ อัปเดตชื่อบอร์ดเป็น UNO R4 Smart Betta
                   _buildInfoTile(
                     icon: Icons.developer_board_rounded,
                     label: 'Device',
-                    value: 'ESP32 Smart Betta',
+                    value: 'UNO R4 Smart Betta',
                     accentColor: const Color(0xFF64B5F6),
                   ),
                   const SizedBox(height: 12),
@@ -319,7 +322,7 @@ class _ConnectPageState extends State<ConnectPage>
   }
 
   // ──────────────────────────────────────
-  // Header — เหมือน Dashboard
+  // Header
   // ──────────────────────────────────────
   Widget _buildHeader() {
     return Padding(
@@ -426,7 +429,7 @@ class _ConnectPageState extends State<ConnectPage>
   }
 
   // ──────────────────────────────────────
-  // Bottom nav — เหมือน Dashboard
+  // Bottom nav
   // ──────────────────────────────────────
   Widget _buildBottomNav() {
     return Container(
@@ -442,8 +445,8 @@ class _ConnectPageState extends State<ConnectPage>
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(icon: Icons.home_rounded,     label: 'หน้าหลัก', selected: _selectedIndex == 0, onTap: () => _onNavTap(0)),
-              _NavItem(icon: Icons.history_rounded,  label: 'ประวัติ',  selected: _selectedIndex == 1, onTap: () => _onNavTap(1)),
-              _NavItem(icon: Icons.settings_rounded, label: 'ตั้งค่า',  selected: _selectedIndex == 2, onTap: () => _onNavTap(2)),
+              _NavItem(icon: Icons.timer_rounded,    label: 'ตั้งเวลา',  selected: _selectedIndex == 1, onTap: () => _onNavTap(1)),
+              _NavItem(icon: Icons.wifi_rounded,     label: 'ระบบ Wi-Fi',selected: _selectedIndex == 2, onTap: () => _onNavTap(2)),
             ],
           ),
         ),

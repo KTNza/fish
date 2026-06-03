@@ -9,14 +9,14 @@ import 'package:timezone/timezone.dart' as tz;
 class NotificationService {
   NotificationService._privateConstructor();
   static final NotificationService _instance =
-      NotificationService._privateConstructor();
+  NotificationService._privateConstructor();
   factory NotificationService() => _instance;
 
   static const String _historyPreferencesKey = 'notificationHistory';
   static const String _readCountPreferencesKey = 'notificationReadCount';
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  FlutterLocalNotificationsPlugin();
 
   final List<Map<String, String>> _notificationHistory = [];
   int _readNotificationCount = 0;
@@ -38,10 +38,10 @@ class NotificationService {
     }
 
     const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const DarwinInitializationSettings iosSettings =
-        DarwinInitializationSettings(
+    DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -59,8 +59,8 @@ class NotificationService {
 
     if (Platform.isAndroid) {
       final androidImplementation =
-          _notificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      _notificationsPlugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
       await androidImplementation?.requestNotificationsPermission();
     }
   }
@@ -89,7 +89,7 @@ class NotificationService {
   Future<void> _saveHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final stored =
-        _notificationHistory.map((item) => jsonEncode(item)).toList();
+    _notificationHistory.map((item) => jsonEncode(item)).toList();
     await prefs.setStringList(_historyPreferencesKey, stored);
   }
 
@@ -123,11 +123,17 @@ class NotificationService {
       return;
     }
 
+    // ✅ สร้างวันที่ปัจจุบันเพื่อจัดกลุ่มในหน้า NotificationPage
+    final now = DateTime.now();
+    final dateString = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year + 543}';
+
     _notificationHistory.insert(0, {
       'title': title,
       'message': body,
       'time': time,
+      'date': dateString, // ✅ บันทึกวันที่เข้าไปด้วย
     });
+
     await _saveHistory();
     hasUnreadNotifications.value = true;
   }
@@ -140,7 +146,7 @@ class NotificationService {
     DateTimeComponents? matchDateTimeComponents,
   }) async {
     const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
+    AndroidNotificationDetails(
       'fish_scheduled_alerts_channel',
       'Fish Scheduled Alerts',
       channelDescription: 'Scheduled notifications for feeding and lights',
@@ -173,7 +179,7 @@ class NotificationService {
       androidAllowWhileIdle: true,
       matchDateTimeComponents: matchDateTimeComponents,
       uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+      UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
@@ -191,7 +197,7 @@ class NotificationService {
     required String body,
   }) async {
     const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
+    AndroidNotificationDetails(
       'fish_alerts_channel',
       'Fish Alerts',
       channelDescription: 'แจ้งเตือนการให้อาหารและการควบคุมไฟ',

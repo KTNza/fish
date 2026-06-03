@@ -11,7 +11,7 @@ import 'notification_service.dart';
 import 'mqtt_service.dart';
 
 // ==========================================
-// Design tokens — ตรงกับ Dashboard
+// Design tokens
 // ==========================================
 class _C {
   static const navy      = Color(0xFF1A2340);
@@ -96,9 +96,9 @@ class _SetTimePageState extends State<SetTimePage> {
       if (scheduledDate.isAfter(DateTime.now())) {
         await NotificationService().scheduleNotification(
           id: _feedNotificationId,
-          title: 'Feed Fish',
+          title: 'ถึงเวลาให้อาหารปลาแล้ว',
           body:
-          'Time to feed the fish at ${scheduledDate.hour.toString().padLeft(2, '0')}:${scheduledDate.minute.toString().padLeft(2, '0')}.',
+          'ได้เวลาให้อาหารปลาเวลา ${scheduledDate.hour.toString().padLeft(2, '0')}:${scheduledDate.minute.toString().padLeft(2, '0')} น.',
           scheduledDate: scheduledDate,
         );
       }
@@ -120,16 +120,16 @@ class _SetTimePageState extends State<SetTimePage> {
 
     await NotificationService().scheduleNotification(
       id: _lightOnNotificationId,
-      title: 'Lights On',
+      title: 'เปิดไฟอัตโนมัติ',
       body:
-      'Lights will turn on at ${_lightTime.hour.toString().padLeft(2, '0')}:${_lightTime.minute.toString().padLeft(2, '0')}.',
+      'ไฟตู้ปลาจะเปิดเวลา ${_lightTime.hour.toString().padLeft(2, '0')}:${_lightTime.minute.toString().padLeft(2, '0')} น.',
       scheduledDate: nextOn,
     );
     await NotificationService().scheduleNotification(
       id: _lightOffNotificationId,
-      title: 'Lights Off',
+      title: 'ปิดไฟอัตโนมัติ',
       body:
-      'Lights will turn off at ${_lightOffTime.hour.toString().padLeft(2, '0')}:${_lightOffTime.minute.toString().padLeft(2, '0')}.',
+      'ไฟตู้ปลาจะปิดเวลา ${_lightOffTime.hour.toString().padLeft(2, '0')}:${_lightOffTime.minute.toString().padLeft(2, '0')} น.',
       scheduledDate: nextOff,
     );
   }
@@ -207,26 +207,26 @@ class _SetTimePageState extends State<SetTimePage> {
     setState(() {
       _isFeeding = true;
       _notifications.insert(0, {
-        'title':   'Feed Fish',
-        'message': 'Time to feed the fish ($timeString)',
+        'title':   'ถึงเวลาให้อาหาร',
+        'message': 'ระบบกำลังให้อาหารปลาอัตโนมัติ ($timeString)',
         'time':    timeString,
       });
     });
 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('🐟 Time to feed the fish!'),
+      content: Text('🐟 กำลังให้อาหารปลา...'),
       backgroundColor: _C.navy,
       duration: Duration(seconds: 2),
     ));
 
     NotificationService().showNotification(
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title: 'Time to Feed Fish',
-      body: 'Time to feed the fish ($timeString)',
+      title: 'ได้เวลาให้อาหารปลา',
+      body: 'ระบบได้ทำการให้อาหารปลาเรียบร้อยแล้ว ($timeString)',
     );
     NotificationService().addHistory(
-      title: 'Time to Feed Fish',
-      body: 'Time to feed the fish ($timeString)',
+      title: 'ได้เวลาให้อาหารปลา',
+      body: 'ระบบได้ทำการให้อาหารปลาเรียบร้อยแล้ว ($timeString)',
       time: timeString,
     );
     _publishControlCommand(MqttService.topicControlFeed, 'feed');
@@ -238,11 +238,12 @@ class _SetTimePageState extends State<SetTimePage> {
     });
   }
 
+  // ✅ นำเครื่องหมาย : ออก และเปลี่ยนรูปแบบข้อความเวลาให้ดูเป็นธรรมชาติ
   String _formatTime(int totalSeconds) {
     final h = totalSeconds ~/ 3600;
     final m = (totalSeconds % 3600) ~/ 60;
     final s = totalSeconds % 60;
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    return '${h.toString().padLeft(2, '0')} ชม. ${m.toString().padLeft(2, '0')} นาที ${s.toString().padLeft(2, '0')} วิ.';
   }
 
   void _sendTimeSettingsToDevice() {
@@ -275,23 +276,23 @@ class _SetTimePageState extends State<SetTimePage> {
         setState(() {
           _isLightOn = true;
           _notifications.insert(0, {
-            'title':   'Lights On',
-            'message': 'Lights turned on at $timeString',
+            'title':   'ไฟเปิดอัตโนมัติ',
+            'message': 'ระบบเปิดไฟเวลา $timeString น.',
             'time':    timeString,
           });
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('💡 Lights turned on'),
+          content: Text('💡 ระบบเปิดไฟตามเวลาที่ตั้งไว้'),
           backgroundColor: _C.navy,
           duration: Duration(seconds: 2),
         ));
         NotificationService().showNotification(
           id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          title: 'Lights On',
-          body: 'Lights turned on at $timeString',
+          title: 'ไฟเปิดอัตโนมัติ',
+          body: 'ระบบเปิดไฟเวลา $timeString น.',
         );
         NotificationService()
-            .addHistory(title: 'Lights On', body: 'Lights turned on at $timeString', time: timeString);
+            .addHistory(title: 'ไฟเปิดอัตโนมัติ', body: 'ระบบเปิดไฟเวลา $timeString น.', time: timeString);
         _publishControlCommand(MqttService.topicControlLight, 'light_on');
       }
 
@@ -299,23 +300,23 @@ class _SetTimePageState extends State<SetTimePage> {
         setState(() {
           _isLightOn = false;
           _notifications.insert(0, {
-            'title':   'Lights Off',
-            'message': 'Lights turned off at $timeString',
+            'title':   'ไฟปิดอัตโนมัติ',
+            'message': 'ระบบปิดไฟเวลา $timeString น.',
             'time':    timeString,
           });
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('💡 Lights turned off'),
+          content: Text('💡 ระบบปิดไฟตามเวลาที่ตั้งไว้'),
           backgroundColor: _C.navy,
           duration: Duration(seconds: 2),
         ));
         NotificationService().showNotification(
           id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          title: 'Lights Off',
-          body: 'Lights turned off at $timeString',
+          title: 'ไฟปิดอัตโนมัติ',
+          body: 'ระบบปิดไฟเวลา $timeString น.',
         );
         NotificationService()
-            .addHistory(title: 'Lights Off', body: 'Lights turned off at $timeString', time: timeString);
+            .addHistory(title: 'ไฟปิดอัตโนมัติ', body: 'ระบบปิดไฟเวลา $timeString น.', time: timeString);
         _publishControlCommand(MqttService.topicControlLight, 'light_off');
       }
     });
@@ -385,9 +386,6 @@ class _SetTimePageState extends State<SetTimePage> {
     super.dispose();
   }
 
-  // ──────────────────────────────────────
-  // [FIX] Nav — เหมือน Dashboard
-  // ──────────────────────────────────────
   void _onNavTap(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
@@ -410,7 +408,7 @@ class _SetTimePageState extends State<SetTimePage> {
   }
 
   // ──────────────────────────────────────
-  // Bottom sheet pickers (ไม่เปลี่ยน logic)
+  // Bottom sheet pickers
   // ──────────────────────────────────────
   void _showTimePicker(BuildContext context, TimeOfDay initialTime,
       Function(TimeOfDay) onTimeSelected) {
@@ -434,7 +432,7 @@ class _SetTimePageState extends State<SetTimePage> {
                 decoration: BoxDecoration(color: Colors.black12,
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
-            const Text('Select Time',
+            const Text('เลือกเวลา',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
                     color: _C.navy)),
             const SizedBox(height: 20),
@@ -443,8 +441,8 @@ class _SetTimePageState extends State<SetTimePage> {
               rightCount: 60,
               leftInitial: initialTime.hour,
               rightInitial: initialTime.minute,
-              leftLabel: 'Hours',
-              rightLabel: 'Minutes',
+              leftLabel: 'ชั่วโมง',
+              rightLabel: 'นาที',
               onLeftChanged:  (i) => setModal(() => selectedHour   = i),
               onRightChanged: (i) => setModal(() => selectedMinute = i),
             ),
@@ -481,7 +479,7 @@ class _SetTimePageState extends State<SetTimePage> {
                 decoration: BoxDecoration(color: Colors.black12,
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
-            const Text('Set Feeding Interval',
+            const Text('ตั้งรอบการให้อาหาร',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
                     color: _C.navy)),
             const SizedBox(height: 20),
@@ -490,8 +488,8 @@ class _SetTimePageState extends State<SetTimePage> {
               rightCount: 60,
               leftInitial: initialHours,
               rightInitial: initialMinutes,
-              leftLabel: 'Hours',
-              rightLabel: 'Minutes',
+              leftLabel: 'ชั่วโมง',
+              rightLabel: 'นาที',
               onLeftChanged:  (i) => setModal(() => selectedHour   = i),
               onRightChanged: (i) => setModal(() => selectedMinute = i),
             ),
@@ -526,7 +524,7 @@ class _SetTimePageState extends State<SetTimePage> {
                   _buildCountdownCard(),
                   const SizedBox(height: 16),
                   _buildLightCard(
-                    title: 'Light On Time',
+                    title: 'เวลาเปิดไฟ (อัตโนมัติ)',
                     time: _lightTime,
                     icon: Icons.wb_sunny_rounded,
                     accentColor: const Color(0xFFFFB74D),
@@ -543,7 +541,7 @@ class _SetTimePageState extends State<SetTimePage> {
                   ),
                   const SizedBox(height: 16),
                   _buildLightCard(
-                    title: 'Light Off Time',
+                    title: 'เวลาปิดไฟ (อัตโนมัติ)',
                     time: _lightOffTime,
                     icon: Icons.nights_stay_rounded,
                     accentColor: const Color(0xFF9575CD),
@@ -570,19 +568,16 @@ class _SetTimePageState extends State<SetTimePage> {
     );
   }
 
-  // ──────────────────────────────────────
-  // Header — เหมือน Dashboard
-  // ──────────────────────────────────────
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 16, 4),
       child: Row(children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Schedule', style: TextStyle(
+          const Text('ตารางเวลา', style: TextStyle(
             fontSize: 22, fontWeight: FontWeight.w800,
             color: _C.navy, letterSpacing: -0.5,
           )),
-          Text('ตั้งเวลาให้อาหารและไฟ', style: TextStyle(
+          const Text('ตั้งเวลาให้อาหารและควบคุมแสงสว่าง', style: TextStyle(
             fontSize: 12, color: Colors.black38, fontWeight: FontWeight.w500,
           )),
         ]),
@@ -625,9 +620,6 @@ class _SetTimePageState extends State<SetTimePage> {
     );
   }
 
-  // ──────────────────────────────────────
-  // Countdown card
-  // ──────────────────────────────────────
   Widget _buildCountdownCard() {
     final accent = _C.teal;
     return _StyledCard(
@@ -646,11 +638,10 @@ class _SetTimePageState extends State<SetTimePage> {
                   color: _C.teal, size: 18),
             ),
             const SizedBox(width: 10),
-            const Text('Feeding', style: TextStyle(
+            const Text('ตั้งเวลาให้อาหาร', style: TextStyle(
               fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy,
             )),
           ]),
-          // timer running badge
           AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -661,7 +652,7 @@ class _SetTimePageState extends State<SetTimePage> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _isTimerRunning ? 'Running' : 'Stopped',
+              _isTimerRunning ? 'กำลังทำงาน' : 'หยุดทำงาน',
               style: TextStyle(
                 fontSize: 10, fontWeight: FontWeight.w700,
                 color: _isTimerRunning ? const Color(0xFF2E7D72) : Colors.black38,
@@ -686,26 +677,35 @@ class _SetTimePageState extends State<SetTimePage> {
             Icon(Icons.check_circle_outline_rounded,
                 color: Colors.white, size: 36),
             SizedBox(height: 8),
-            Text('🐟 Feeding...', textAlign: TextAlign.center,
+            Text('🐟 กำลังให้อาหาร...', textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white,
                     fontSize: 20, fontWeight: FontWeight.w700)),
           ])
               : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('Next feeding in',
+            const Text('ให้อาหารครั้งต่อไปในอีก',
                 style: TextStyle(color: Colors.white54, fontSize: 12)),
             const SizedBox(height: 6),
-            Text(
-              _formatTime(_remainingSeconds > 0
-                  ? _remainingSeconds
-                  : (_feedingIntervalSeconds <= 0 ? 60 : _feedingIntervalSeconds)),
-              style: const TextStyle(
-                color: Colors.white, fontSize: 36,
-                fontWeight: FontWeight.w300, letterSpacing: 2,
+
+            // ✅ นำ FittedBox มาครอบทับตัวหนังสือไว้ ป้องกันตกบรรทัด
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _formatTime(_remainingSeconds > 0
+                    ? _remainingSeconds
+                    : (_feedingIntervalSeconds <= 0 ? 60 : _feedingIntervalSeconds)),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
+
+            const SizedBox(height: 8),
             Text(
-              'Every $_feedingIntervalHours hr $_feedingIntervalMinutes min',
+              // ✅ ใช้ตัวย่อ ชม.
+              'รอบปกติ: ทุกๆ $_feedingIntervalHours ชม. $_feedingIntervalMinutes นาที',
               style: const TextStyle(color: Colors.white38, fontSize: 12),
             ),
           ]),
@@ -713,7 +713,6 @@ class _SetTimePageState extends State<SetTimePage> {
 
         const SizedBox(height: 16),
 
-        // interval setter
         _buildIntervalRow(),
 
         const SizedBox(height: 16),
@@ -721,19 +720,19 @@ class _SetTimePageState extends State<SetTimePage> {
         // control buttons
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           _ActionButton(
-            label: 'Start', icon: Icons.play_arrow_rounded,
+            label: 'เริ่ม', icon: Icons.play_arrow_rounded,
             color: const Color(0xFF4DB6AC),
             onTap: _startCountdown,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _ActionButton(
-            label: 'Stop', icon: Icons.stop_rounded,
+            label: 'หยุด', icon: Icons.stop_rounded,
             color: _C.danger,
             onTap: _stopCountdown,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _ActionButton(
-            label: 'Feed Now', icon: Icons.restaurant_rounded,
+            label: 'ให้อาหารทันที', icon: Icons.restaurant_rounded,
             color: _C.navy,
             onTap: () => _triggerFeeding(restartCountdown: false),
           ),
@@ -744,13 +743,13 @@ class _SetTimePageState extends State<SetTimePage> {
 
   Widget _buildIntervalRow() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Set Interval',
+      Text('ตั้งรอบการให้อาหาร',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
               color: Colors.black.withOpacity(0.5))),
       const SizedBox(height: 8),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         _IntervalStepper(
-          label: 'hr',
+          label: 'ชม.',
           value: _feedingIntervalHours,
           onDecrement: () {
             if (_feedingIntervalHours > 0) {
@@ -779,7 +778,7 @@ class _SetTimePageState extends State<SetTimePage> {
         ),
         const SizedBox(width: 16),
         _IntervalStepper(
-          label: 'min',
+          label: 'นาที',
           value: _feedingIntervalMinutes,
           onDecrement: () {
             if (_feedingIntervalMinutes > 0) {
@@ -813,9 +812,6 @@ class _SetTimePageState extends State<SetTimePage> {
     ]);
   }
 
-  // ──────────────────────────────────────
-  // Light schedule card
-  // ──────────────────────────────────────
   Widget _buildLightCard({
     required String title,
     required TimeOfDay time,
@@ -855,7 +851,7 @@ class _SetTimePageState extends State<SetTimePage> {
               color: accentColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text('Edit',
+            child: Text('แก้ไข',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
                     color: accentColor)),
           ),
@@ -864,9 +860,6 @@ class _SetTimePageState extends State<SetTimePage> {
     );
   }
 
-  // ──────────────────────────────────────
-  // Manual light card
-  // ──────────────────────────────────────
   Widget _buildManualLightCard() {
     final accent = _isLightOn ? const Color(0xFFFFB74D) : Colors.black26;
     return _StyledCard(
@@ -887,11 +880,14 @@ class _SetTimePageState extends State<SetTimePage> {
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Manual Light Control',
+            const Text('เปิด-ปิดไฟด้วยตัวเอง',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
                     color: _C.navy)),
-            Text(_isLightOn ? 'Light is ON' : 'Light is OFF',
-                style: TextStyle(fontSize: 11, color: Colors.black.withOpacity(0.4))),
+            Text(_isLightOn ? 'ไฟกำลังเปิดอยู่' : 'ไฟกำลังปิดอยู่',
+                style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6))),
+            const SizedBox(height: 2),
+            Text('ถ้ากดเอง ระบบอัตโนมัติจะยังทำงานต่อตามเวลาที่ตั้งไว้',
+                style: TextStyle(fontSize: 9, color: Colors.black.withOpacity(0.4))),
           ]),
         ),
         Switch(
@@ -902,7 +898,7 @@ class _SetTimePageState extends State<SetTimePage> {
             _publishControlCommand(MqttService.topicControlLight,
                 value ? 'light_on' : 'light_off');
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(value ? '💡 Light turned ON manually' : '💡 Light turned OFF manually'),
+              content: Text(value ? '💡 เปิดไฟด้วยตัวเองแล้ว' : '💡 ปิดไฟด้วยตัวเองแล้ว'),
               backgroundColor: _C.navy,
               duration: const Duration(seconds: 1),
             ));
@@ -916,9 +912,6 @@ class _SetTimePageState extends State<SetTimePage> {
     );
   }
 
-  // ──────────────────────────────────────
-  // Bottom nav — เหมือน Dashboard
-  // ──────────────────────────────────────
   Widget _buildBottomNav() {
     return Container(
       decoration: const BoxDecoration(
@@ -933,8 +926,8 @@ class _SetTimePageState extends State<SetTimePage> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(icon: Icons.home_rounded,     label: 'หน้าหลัก', selected: _selectedIndex == 0, onTap: () => _onNavTap(0)),
-              _NavItem(icon: Icons.history_rounded,  label: 'ประวัติ',  selected: _selectedIndex == 1, onTap: () => _onNavTap(1)),
-              _NavItem(icon: Icons.settings_rounded, label: 'ตั้งค่า',  selected: _selectedIndex == 2, onTap: () => _onNavTap(2)),
+              _NavItem(icon: Icons.timer_rounded,    label: 'ตั้งเวลา',  selected: _selectedIndex == 1, onTap: () => _onNavTap(1)),
+              _NavItem(icon: Icons.wifi_rounded,     label: 'ระบบ Wi-Fi',selected: _selectedIndex == 2, onTap: () => _onNavTap(2)),
             ],
           ),
         ),
@@ -947,7 +940,6 @@ class _SetTimePageState extends State<SetTimePage> {
 // Shared sub-widgets
 // ==========================================
 
-/// Card wrapper — border + shadow ใช้สี accent เหมือน SensorCard ใน Dashboard
 class _StyledCard extends StatelessWidget {
   final Widget child;
   final Color accentColor;
@@ -976,7 +968,6 @@ class _StyledCard extends StatelessWidget {
   }
 }
 
-/// +/- stepper สำหรับ interval
 class _IntervalStepper extends StatelessWidget {
   final String label;
   final int value;
@@ -1030,7 +1021,6 @@ class _IntervalStepper extends StatelessWidget {
   }
 }
 
-/// ปุ่ม Start / Stop / Feed
 class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1062,7 +1052,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// Confirm button ใน bottom sheet
 class _ConfirmButton extends StatelessWidget {
   final VoidCallback onPressed;
   const _ConfirmButton({required this.onPressed});
@@ -1081,14 +1070,13 @@ class _ConfirmButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
-        child: const Text('Confirm',
+        child: const Text('ยืนยัน',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       ),
     );
   }
 }
 
-/// Wheel row ใน bottom sheet
 class _WheelRow extends StatelessWidget {
   final int leftCount, rightCount;
   final int leftInitial, rightInitial;
@@ -1143,10 +1131,6 @@ class _WheelRow extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────
-// _NavItem — copy จาก Dashboard (ให้ใช้ร่วมกัน
-// หรือย้ายไป shared widgets file ก็ได้)
-// ──────────────────────────────────────
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
