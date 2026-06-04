@@ -63,7 +63,7 @@ SensorMeta _tempMeta(double t) {
   if (t < BettaFryParams.tempDanger) return const SensorMeta(color: Color(0xFF90CAF9), label: 'อันตราย! เย็นมาก', icon: Icons.ac_unit);
   if (t < BettaFryParams.tempLow) return const SensorMeta(color: Color(0xFF4FC3F7), label: 'เย็นเกินไป', icon: Icons.ac_unit);
   if (t < BettaFryParams.tempIdealLo) return const SensorMeta(color: Color(0xFF80CBC4), label: 'เย็นนิดหน่อย', icon: Icons.thermostat);
-  if (t <= BettaFryParams.tempIdealHi) return const SensorMeta(color: Color(0xFF4DB6AC), label: 'อุณหภูมิเหมาะสม', icon: Icons.check_circle_outline);
+  if (t <= BettaFryParams.tempIdealHi) return const SensorMeta(color: Color(0xFF4DB6AC), label: 'อุณหภูมิเหมาะสม', icon: Icons.thermostat);
   if (t <= BettaFryParams.tempHigh) return const SensorMeta(color: Color(0xFFFFB74D), label: 'อุ่นเกินไปนิดหน่อย', icon: Icons.thermostat);
   if (t <= BettaFryParams.tempDangerH) return const SensorMeta(color: Color(0xFFFF8A65), label: 'ร้อนเกินไป', icon: Icons.warning_amber_rounded);
   return const SensorMeta(color: Color(0xFFE57373), label: 'อันตราย! ร้อนมาก', icon: Icons.dangerous_outlined);
@@ -416,7 +416,7 @@ class _DashboardPageState extends State<DashboardPage> with TickerProviderStateM
           Row(children: [const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF4DB6AC)), const SizedBox(width: 6), Text('ค่ามาตรฐานสำหรับลูกปลากัด', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF1A2340).withOpacity(0.7)))]),
           const SizedBox(height: 8),
           _paramRow('อุณหภูมิ', '26–29°C', _temperature, BettaFryParams.tempIdealLo, BettaFryParams.tempIdealHi),
-          _paramRow('pH', '6.8–7.5', _phValue, BettaFryParams.phIdealLo, BettaFryParams.phIdealHi),
+          _paramRow('pH', '6.8–8.0', _phValue, BettaFryParams.phIdealLo, BettaFryParams.phIdealHi),
           _paramRow('ออกซิเจน', '5–8 mg/L', _oxygenLevel, BettaFryParams.doIdealLo, BettaFryParams.doIdealHi),
           _paramRow('ความขุ่น', '< 1 NTU', _turbidity, 0, BettaFryParams.turbClear),
         ],
@@ -547,10 +547,29 @@ class SensorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Container(width: 36, height: 36, decoration: BoxDecoration(color: accentColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: accentColor, size: 18)),
-            const SizedBox(width: 4), Flexible(child: AnimatedContainer(duration: const Duration(milliseconds: 500), padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: accentColor.withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: Text(statusLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: accentColor)))),
-          ]),
+          // ✅ ให้กล่องป้ายสถานะสามารถย่อตัวอักษรได้ถ้าขนาดยาวเกินไป
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(width: 36, height: 36, decoration: BoxDecoration(color: accentColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: accentColor, size: 18)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 500),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(color: accentColor.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: accentColor),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const Spacer(), Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w300, color: Color(0xFF1A2340), letterSpacing: -0.5)),
           const SizedBox(height: 2), Text(label, style: TextStyle(fontSize: 10, color: Colors.black.withOpacity(0.4), fontWeight: FontWeight.w500)),
           const SizedBox(height: 6), Row(children: [Text('เหมาะสม: $idealRange', style: TextStyle(fontSize: 9, color: accentColor.withOpacity(0.8), fontWeight: FontWeight.w600))]),

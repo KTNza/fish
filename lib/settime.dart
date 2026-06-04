@@ -25,6 +25,11 @@ class _C {
 }
 
 // ==========================================
+// ตัวแปรเช็คการเปิดแอปครั้งแรก (Cold Start)
+// ==========================================
+bool _isAppJustStarted = true; // ✅ เอาคำว่า static ออกแล้ว
+
+// ==========================================
 // SetTimePage
 // ==========================================
 class SetTimePage extends StatefulWidget {
@@ -69,6 +74,9 @@ class _SetTimePageState extends State<SetTimePage> {
   Timer? _lightTimer;
   bool _isLightOn = false;
 
+  // ✅ ตัวแปรควบคุมการเปิด/ปิดระบบตั้งเวลาไฟอัตโนมัติ
+  bool _isAutoLightEnabled = true;
+
   final List<Map<String, String>> _notifications = [];
 
   // ──────────────────────────────────────
@@ -109,6 +117,9 @@ class _SetTimePageState extends State<SetTimePage> {
     await NotificationService().cancelNotification(_lightOnNotificationId);
     await NotificationService().cancelNotification(_lightOffNotificationId);
 
+    // ถ้าระบบไฟอัตโนมัติถูกปิดอยู่ ไม่ต้องตั้งแจ้งเตือน
+    if (!_isAutoLightEnabled) return;
+
     final now = DateTime.now();
     DateTime nextOn = DateTime(now.year, now.month, now.day,
         _lightTime.hour, _lightTime.minute);
@@ -147,6 +158,7 @@ class _SetTimePageState extends State<SetTimePage> {
     await prefs.setInt('lightOffHour',   _lightOffTime.hour);
     await prefs.setInt('lightOffMinute', _lightOffTime.minute);
     await prefs.setBool('lightIsOn', _isLightOn);
+    await prefs.setBool('isAutoLightEnabled', _isAutoLightEnabled);
   }
 
   bool _computeLightOn(TimeOfDay now, TimeOfDay onTime, TimeOfDay offTime) {
@@ -238,7 +250,6 @@ class _SetTimePageState extends State<SetTimePage> {
     });
   }
 
-  // ✅ นำเครื่องหมาย : ออก และเปลี่ยนรูปแบบข้อความเวลาให้ดูเป็นธรรมชาติ
   String _formatTime(int totalSeconds) {
     final h = totalSeconds ~/ 3600;
     final m = (totalSeconds % 3600) ~/ 60;
@@ -254,6 +265,7 @@ class _SetTimePageState extends State<SetTimePage> {
       '${_lightTime.hour.toString().padLeft(2, '0')}:${_lightTime.minute.toString().padLeft(2, '0')}',
       'lightOffTime':
       '${_lightOffTime.hour.toString().padLeft(2, '0')}:${_lightOffTime.minute.toString().padLeft(2, '0')}',
+      'isAutoLightEnabled': _isAutoLightEnabled,
     };
     MqttService().publishJson(MqttService.topicControlSettings, settings);
   }
@@ -265,6 +277,9 @@ class _SetTimePageState extends State<SetTimePage> {
   void _startLightTimer() {
     _lightTimer?.cancel();
     _lightTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      // ✅ ถ้าระบบไฟอัตโนมัติถูกปิดอยู่ ให้ข้ามการทำงานไปเลย
+      if (!_isAutoLightEnabled) return;
+
       final now        = TimeOfDay.now();
       final onM        = _lightTime.hour * 60 + _lightTime.minute;
       final offM       = _lightOffTime.hour * 60 + _lightOffTime.minute;
@@ -343,6 +358,10 @@ class _SetTimePageState extends State<SetTimePage> {
     final savedOnMinute   = prefs.getInt('lightOnMinute');
     final savedOffHour    = prefs.getInt('lightOffHour');
     final savedOffMinute  = prefs.getInt('lightOffMinute');
+    final savedAutoLight  = prefs.getBool('isAutoLightEnabled') ?? true;
+
+    // โหลดสถานะไฟเดิมที่เคยเซฟไว้
+    bool savedLightIsOn = prefs.getBool('lightIsOn') ?? false;
 
     setState(() {
       if (savedHours   != null) _feedingIntervalHours   = savedHours;
@@ -351,6 +370,8 @@ class _SetTimePageState extends State<SetTimePage> {
         _lightTime    = TimeOfDay(hour: savedOnHour,  minute: savedOnMinute);
       if (savedOffHour != null && savedOffMinute != null)
         _lightOffTime = TimeOfDay(hour: savedOffHour, minute: savedOffMinute);
+
+      _isAutoLightEnabled = savedAutoLight;
       _isTimerRunning         = running;
       _countdownEndTimeMillis = savedEndMillis;
       _notifications
@@ -358,8 +379,20 @@ class _SetTimePageState extends State<SetTimePage> {
         ..addAll(NotificationService().notificationHistory);
     });
 
-    final now = TimeOfDay.now();
-    setState(() => _isLightOn = _computeLightOn(now, _lightTime, _lightOffTime));
+    // ✅ ถ้าเปิดแอปครั้งแรก ให้บังคับปิดไฟ (Cold Start)
+    if (_isAppJustStarted) {
+      setState(() {
+        _isLightOn = false;
+        _isAppJustStarted = false; // ปิดสถานะเปิดแอปครั้งแรก
+      });
+      _saveLightSettings(); // บันทึกทับค่าเก่า
+    } else {
+      // ✅ ถ้าสลับหน้าไปมา ให้ดึงค่าที่แอปจำไว้ล่าสุด
+      setState(() {
+        _isLightOn = savedLightIsOn;
+      });
+    }
+
     _publishControlCommand(
         MqttService.topicControlLight, _isLightOn ? 'light_on' : 'light_off');
 
@@ -523,40 +556,47 @@ class _SetTimePageState extends State<SetTimePage> {
                 child: Column(children: [
                   _buildCountdownCard(),
                   const SizedBox(height: 16),
-                  _buildLightCard(
-                    title: 'เวลาเปิดไฟ (อัตโนมัติ)',
-                    time: _lightTime,
-                    icon: Icons.wb_sunny_rounded,
-                    accentColor: const Color(0xFFFFB74D),
-                    onEdit: () => _showTimePicker(context, _lightTime, (t) {
-                      setState(() {
-                        _lightTime = t;
-                        _isLightOn = _computeLightOn(TimeOfDay.now(), _lightTime, _lightOffTime);
-                      });
-                      _sendTimeSettingsToDevice();
-                      _saveLightSettings();
-                      _scheduleLightNotifications();
-                      _startLightTimer();
-                    }),
-                  ),
+
+                  // ✅ เพิ่มสวิตช์ควบคุมระบบไฟอัตโนมัติ
+                  _buildAutoLightToggleCard(),
                   const SizedBox(height: 16),
-                  _buildLightCard(
-                    title: 'เวลาปิดไฟ (อัตโนมัติ)',
-                    time: _lightOffTime,
-                    icon: Icons.nights_stay_rounded,
-                    accentColor: const Color(0xFF9575CD),
-                    onEdit: () => _showTimePicker(context, _lightOffTime, (t) {
-                      setState(() {
-                        _lightOffTime = t;
-                        _isLightOn = _computeLightOn(TimeOfDay.now(), _lightTime, _lightOffTime);
-                      });
-                      _sendTimeSettingsToDevice();
-                      _saveLightSettings();
-                      _scheduleLightNotifications();
-                      _startLightTimer();
-                    }),
-                  ),
-                  const SizedBox(height: 16),
+
+                  // ซ่อนช่องตั้งเวลาถ้าผู้ใช้ปิดระบบอัตโนมัติ
+                  if (_isAutoLightEnabled) ...[
+                    _buildLightCard(
+                      title: 'เวลาเปิดไฟ (อัตโนมัติ)',
+                      time: _lightTime,
+                      icon: Icons.wb_sunny_rounded,
+                      accentColor: const Color(0xFFFFB74D),
+                      onEdit: () => _showTimePicker(context, _lightTime, (t) {
+                        setState(() {
+                          _lightTime = t;
+                        });
+                        _sendTimeSettingsToDevice();
+                        _saveLightSettings();
+                        _scheduleLightNotifications();
+                        _startLightTimer();
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLightCard(
+                      title: 'เวลาปิดไฟ (อัตโนมัติ)',
+                      time: _lightOffTime,
+                      icon: Icons.nights_stay_rounded,
+                      accentColor: const Color(0xFF9575CD),
+                      onEdit: () => _showTimePicker(context, _lightOffTime, (t) {
+                        setState(() {
+                          _lightOffTime = t;
+                        });
+                        _sendTimeSettingsToDevice();
+                        _saveLightSettings();
+                        _scheduleLightNotifications();
+                        _startLightTimer();
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   _buildManualLightCard(),
                 ]),
               ),
@@ -812,6 +852,55 @@ class _SetTimePageState extends State<SetTimePage> {
     ]);
   }
 
+  // ✅ การ์ดสำหรับเปิด-ปิดระบบตั้งเวลาอัตโนมัติ
+  Widget _buildAutoLightToggleCard() {
+    final accent = _isAutoLightEnabled ? _C.teal : Colors.black26;
+    return _StyledCard(
+      accentColor: accent,
+      child: Row(children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: accent.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.access_time_rounded,
+            color: accent, size: 20,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('ตั้งเวลาไฟอัตโนมัติ',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                    color: _C.navy)),
+            Text(_isAutoLightEnabled ? 'เปิดใช้งานอยู่' : 'ปิดใช้งาน',
+                style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6))),
+          ]),
+        ),
+        Switch(
+          value: _isAutoLightEnabled,
+          onChanged: (value) {
+            setState(() => _isAutoLightEnabled = value);
+            _saveLightSettings();
+            _scheduleLightNotifications();
+            if (value) {
+              _startLightTimer();
+            } else {
+              _lightTimer?.cancel();
+            }
+          },
+          activeColor: _C.teal,
+          activeTrackColor: _C.teal.withOpacity(0.3),
+          inactiveThumbColor: Colors.grey,
+          inactiveTrackColor: Colors.grey.withOpacity(0.3),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildLightCard({
     required String title,
     required TimeOfDay time,
@@ -886,7 +975,10 @@ class _SetTimePageState extends State<SetTimePage> {
             Text(_isLightOn ? 'ไฟกำลังเปิดอยู่' : 'ไฟกำลังปิดอยู่',
                 style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6))),
             const SizedBox(height: 2),
-            Text('ถ้ากดเอง ระบบอัตโนมัติจะยังทำงานต่อตามเวลาที่ตั้งไว้',
+            Text(
+                _isAutoLightEnabled
+                    ? 'ระบบอัตโนมัติจะยังทำงานต่อตามเวลาที่ตั้งไว้'
+                    : 'ควบคุมแบบแมนนวล 100%',
                 style: TextStyle(fontSize: 9, color: Colors.black.withOpacity(0.4))),
           ]),
         ),
